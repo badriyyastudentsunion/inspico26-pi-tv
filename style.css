@@ -817,9 +817,13 @@ html, body {
   font-weight: 900;
   font-family: var(--font-main);
   line-height: 0.88;
-  letter-spacing: -5px;
+  letter-spacing: -3px;
   color: #ffffff;
   text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  display: inline-block;
+  text-align: center;
   transition: transform 0.3s ease, filter 0.3s ease;
   will-change: transform, filter;
 }

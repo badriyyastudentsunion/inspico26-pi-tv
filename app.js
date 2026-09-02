@@ -117,7 +117,8 @@ class TvApp {
     if (hash) {
       this.searchChestNumber(hash)
     } else {
-      this.switchView('dashboard')
+      // Switch view without re-fetching immediately (avoids double animation on first load)
+      this.switchView('dashboard', false)
     }
   }
 
@@ -129,15 +130,7 @@ class TvApp {
       if (window.supabase && typeof window.supabase.createClient === 'function') {
         this.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
       } else {
-        console.warn('Local Supabase not found, loading from CDN...')
-        const script = document.createElement('script')
-        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
-        script.onload = () => {
-          this.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-          this.fetchDashboardPoints()
-          this.fetchStandbyData()
-        }
-        document.head.appendChild(script)
+        console.warn('Supabase SDK not yet initialized')
       }
     } catch (e) {
       console.error('Failed to initialize Supabase client:', e)
@@ -149,6 +142,8 @@ class TvApp {
   // --------------------------------------------------------------------------
   async fetchDashboardPoints() {
     if (!this.supabase) return
+    if (this.isFetchingDashboard) return
+    this.isFetchingDashboard = true
 
     try {
       // 1. Fetch App Settings, Teams, and Published Competition Results in Parallel (matching V1)
@@ -324,6 +319,8 @@ class TvApp {
 
     } catch (err) {
       console.error('Error fetching dashboard points:', err)
+    } finally {
+      this.isFetchingDashboard = false
     }
   }
 
@@ -1386,7 +1383,7 @@ class TvApp {
     }
   }
 
-  switchView(viewName) {
+  switchView(viewName, shouldFetch = true) {
     this.currentView = viewName
 
     const isDb = viewName === 'dashboard'
@@ -1406,7 +1403,9 @@ class TvApp {
         this.dom.btnToggleNavView.style.background = 'rgba(184, 25, 60, 0.25)'
         this.dom.btnToggleNavView.style.borderColor = 'var(--accent)'
       }
-      this.fetchDashboardPoints()
+      if (shouldFetch) {
+        this.fetchDashboardPoints()
+      }
     } else if (isStandby) {
       this.stopCountdown()
       window.location.hash = ''
