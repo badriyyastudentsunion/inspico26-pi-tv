@@ -155,7 +155,7 @@ class TvApp {
         this.supabase.from('app_settings').select('key, value').in('key', ['leaderboard_revealed_milestone', 'announcer_sequence', 'team_colors']),
         this.supabase.from('teams').select('id, name').order('name'),
         this.supabase.from('competition_results')
-          .select('position, placement_points, grade_points, competition_id, participants(team_id)')
+          .select('position, grade, placement_points, grade_points, competition_id, participants(team_id)')
           .eq('published', true),
         this.supabase.from('participants').select('id', { count: 'exact', head: true }),
         this.supabase.from('competitions').select('id', { count: 'exact', head: true })
@@ -218,10 +218,11 @@ class TvApp {
           totalPoints: 0,
           placementPoints: 0,
           gradePoints: 0,
-          goldCount: 0,
-          silverCount: 0,
-          bronzeCount: 0,
-          totalWins: 0
+          p1: 0,
+          p2: 0,
+          p3: 0,
+          gradeA: 0,
+          totalGrades: 0
         }
       })
 
@@ -261,11 +262,14 @@ class TvApp {
             teamMap[tid].totalPoints += pts
           }
 
-          if (r.position === 1) teamMap[tid].goldCount++
-          else if (r.position === 2) teamMap[tid].silverCount++
-          else if (r.position === 3) teamMap[tid].bronzeCount++
+          if (r.position === 1) teamMap[tid].p1++
+          else if (r.position === 2) teamMap[tid].p2++
+          else if (r.position === 3) teamMap[tid].p3++
 
-          if (r.position && r.position <= 3) teamMap[tid].totalWins++
+          if (r.grade) {
+            teamMap[tid].totalGrades++
+            if (r.grade.includes('A')) teamMap[tid].gradeA++
+          }
         }
       })
 
@@ -351,15 +355,20 @@ class TvApp {
       const percent = Math.min(100, Math.round((team.totalPoints / maxPoints) * 100))
 
       return `
-        <div class="podium-team-card ${isLeader ? 'rank-1-leader' : ''}" style="--team-color: ${team.color}; border: 2px solid ${team.color};">
+        <div class="podium-team-card ${isLeader ? 'rank-1-leader' : ''}" style="--team-color: ${team.color}; border-top-color: ${team.color};">
           <div class="team-accent-glow-top" style="background: ${team.color};"></div>
           
           <div class="podium-card-header">
-            <div class="team-rank-tag rank-${rank}">
-              <span class="rank-num-val">#0${rank}</span>
-              ${isLeader ? `<span class="crown-icon-glow">👑</span>` : ''}
+            <div class="pro-rank-badge rank-${rank}">
+              <span class="pro-rank-label">RANK</span>
+              <span class="pro-rank-num">0${rank}</span>
+              ${isLeader ? `
+                <svg class="pro-svg-crown" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/>
+                </svg>
+              ` : ''}
             </div>
-            ${isLeader ? `<div class="leader-badge-pill">CHAMPIONSHIP LEADER</div>` : ''}
+            ${isLeader ? `<div class="leader-badge-pill">LEADER</div>` : ''}
           </div>
 
           <div class="team-identity-block">
@@ -367,34 +376,48 @@ class TvApp {
           </div>
 
           <div class="team-score-block">
-            <div class="score-points-number" id="pts-count-${team.id}" style="color: #fff; text-shadow: 0 0 45px ${team.color}, 0 0 90px ${team.color}88;">
+            <div class="score-points-number" id="pts-count-${team.id}">
               ${team.totalPoints}
             </div>
             <div class="score-unit-text">POINTS</div>
 
             <div class="team-progress-bar-wrap">
-              <div class="team-progress-bar-fill" style="width: ${percent}%; background: linear-gradient(90deg, ${team.color}, #ffffff); box-shadow: 0 0 25px ${team.color};"></div>
+              <div class="team-progress-bar-fill" style="width: ${percent}%; background: ${team.color};"></div>
             </div>
           </div>
 
-          <div class="team-breakdown-row">
-            <span class="breakdown-item">Placement: <strong>${team.placementPoints}</strong></span>
-            <span class="breakdown-divider">|</span>
-            <span class="breakdown-item">Grade: <strong>${team.gradePoints}</strong></span>
-          </div>
+          <!-- Professional Place and Grade Counts (Zero Emojis, Pro SVGs) -->
+          <div class="team-pro-counts-row">
+            <div class="pro-count-chip chip-gold" title="1st Place Count">
+              <svg class="pro-count-svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/>
+              </svg>
+              <span class="pro-chip-name">1ST</span>
+              <span class="pro-chip-val">${team.p1}</span>
+            </div>
 
-          <div class="team-medals-tally">
-            <div class="medal-count-box" title="1st Place (Gold)">
-              <span class="medal-icon-badge">🥇</span>
-              <span>${team.goldCount}</span>
+            <div class="pro-count-chip chip-silver" title="2nd Place Count">
+              <svg class="pro-count-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>
+              </svg>
+              <span class="pro-chip-name">2ND</span>
+              <span class="pro-chip-val">${team.p2}</span>
             </div>
-            <div class="medal-count-box" title="2nd Place (Silver)">
-              <span class="medal-icon-badge">🥈</span>
-              <span>${team.silverCount}</span>
+
+            <div class="pro-count-chip chip-bronze" title="3rd Place Count">
+              <svg class="pro-count-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>
+              </svg>
+              <span class="pro-chip-name">3RD</span>
+              <span class="pro-chip-val">${team.p3}</span>
             </div>
-            <div class="medal-count-box" title="3rd Place (Bronze)">
-              <span class="medal-icon-badge">🥉</span>
-              <span>${team.bronzeCount}</span>
+
+            <div class="pro-count-chip chip-grade" title="A-Grade Count">
+              <svg class="pro-count-svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2l2.4 7.2h7.6l-6.1 4.5 2.3 7.3-6.2-4.6-6.2 4.6 2.3-7.3-6.1-4.5h7.6z"/>
+              </svg>
+              <span class="pro-chip-name">A GRD</span>
+              <span class="pro-chip-val">${team.gradeA}</span>
             </div>
           </div>
         </div>
