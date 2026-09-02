@@ -293,7 +293,7 @@ class TvApp {
       if (headingEl) {
         headingEl.textContent = revealedMilestone > 0 
           ? `STATUS AFTER ${revealedMilestone} RESULTS` 
-          : `CHAMPIONSHIP LEADERBOARD`
+          : `POINTS STANDINGS`
       }
 
       // Render the 3 Team Podium Cards
@@ -312,7 +312,7 @@ class TvApp {
         this.dom.dbTotalParticipants.textContent = partsCountRes.count
       }
 
-      // Fetch Latest Published Winner
+      // Fetch Latest Winner Announcement
       this.fetchLatestWinnerAnnouncement()
 
       // Update sync time
@@ -332,7 +332,7 @@ class TvApp {
     if (teams.length === 0) {
       this.dom.dashboardPodiumGrid.innerHTML = `
         <div class="dashboard-loading-state">
-          <span>Awaiting official championship results...</span>
+          <span>Awaiting Published Results...</span>
         </div>
       `
       return
@@ -425,23 +425,33 @@ class TvApp {
     })
   }
 
-  animateNumber(element, target) {
+  animateNumber(element, target, duration = 2800) {
     if (!element) return
-    const start = 0
-    const duration = 1100
+    const rawPrev = parseInt(element.getAttribute('data-val') || element.textContent.replace(/[^\d]/g, ''), 10)
+    const start = isNaN(rawPrev) ? 0 : rawPrev
+    if (start === target && element.textContent !== '') return
+
+    element.setAttribute('data-val', target)
+    element.classList.add('is-rolling')
+
     const startTime = performance.now()
 
     const step = (currentTime) => {
       const elapsed = currentTime - startTime
       const progress = Math.min(elapsed / duration, 1)
-      const ease = 1 - Math.pow(1 - progress, 3)
-      const currentVal = Math.floor(start + (target - start) * ease)
+
+      // Quintic ease-out: Fast dramatic initial climb, slow suspenseful landing at final digits
+      const ease = 1 - Math.pow(1 - progress, 5)
+      const currentVal = Math.round(start + (target - start) * ease)
       element.textContent = currentVal.toLocaleString()
 
       if (progress < 1) {
         requestAnimationFrame(step)
       } else {
         element.textContent = target.toLocaleString()
+        element.classList.remove('is-rolling')
+        element.classList.add('number-settled')
+        setTimeout(() => element.classList.remove('number-settled'), 600)
       }
     }
     requestAnimationFrame(step)

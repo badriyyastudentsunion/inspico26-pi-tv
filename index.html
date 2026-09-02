@@ -107,42 +107,32 @@
       <!-- VIEW 0: MAIN TV LIVE POINTS LEADERBOARD (DEFAULT SCREEN) -->
       <!-- ========================================================== -->
       <section class="view-dashboard active" id="viewDashboard">
-        <!-- Floating Ambient Aurora Orbs Background -->
+        <!-- Floating Ambient Aurora Orbs & Blended Animated Logo Background -->
         <div class="dashboard-aurora-bg">
           <div class="aurora-orb orb-1"></div>
           <div class="aurora-orb orb-2"></div>
           <div class="aurora-orb orb-3"></div>
+
+          <!-- Animated Logo Decorations with Varied Scales & Blending -->
+          <img src="assets/inspico-logo.svg" class="lp-deco-logo lp-deco-logo--tl" alt="" />
+          <img src="assets/inspico-logo.svg" class="lp-deco-logo lp-deco-logo--tr" alt="" />
+          <img src="assets/inspico-logo.svg" class="lp-deco-logo lp-deco-logo--br" alt="" />
+          <img src="assets/inspico-logo.svg" class="lp-deco-logo lp-deco-logo--bl" alt="" />
+          <img src="assets/inspico-logo.svg" class="lp-deco-logo lp-deco-logo--center" alt="" />
         </div>
 
         <div class="dashboard-inner-container">
-          <!-- Top Broadcast Ribbon -->
-          <div class="dashboard-broadcast-ribbon">
-            <div class="broadcast-left-group">
-              <div class="ribbon-brand-group">
-                <img src="assets/inspico-logo.svg" alt="Inspico Logo" class="lp-topbar-logo" />
-                <img src="assets/inspico.svg" alt="Inspico" class="lp-topbar-word" />
-                <div class="brand-divider"></div>
-                <div class="brand-subtitle-wrap">
-                  <span class="brand-eyebrow">BDSA PRESENCE</span>
-                  <span class="brand-subtext">ARTS GALLERY 2026</span>
-                </div>
-              </div>
-
-              <div class="ribbon-brand-divider"></div>
-
-              <h1 class="broadcast-main-heading" id="dashboardMilestoneTitle">STATUS AFTER 40 RESULTS</h1>
+          <!-- Landing Page Hero Style Centered Inspico Title Banner (Clean Centered Wordmark) -->
+          <div class="lp-hero-center-banner">
+            <p class="lp-eyebrow">BDSA PRESENCE</p>
+            <div class="lp-click-more-wrap">
+              <img src="assets/click-to-see-more.svg" class="lp-click-more-img" alt="Click to see more" />
             </div>
-
-            <div class="broadcast-right-group">
-              <div class="broadcast-live-badge">
-                <span class="live-dot-pulse"></span>
-                <span>LIVE STANDING</span>
-              </div>
-              <div class="broadcast-sync-pill" id="dbSyncStatus">
-                <span class="sync-dot"></span>
-                <span id="dbSyncTimeText">Auto-Syncing</span>
-              </div>
+            <div class="lp-logo-block">
+              <img src="assets/inspico.svg" class="lp-logo-word" alt="Inspico" />
             </div>
+            <p class="lp-arts-subtitle">ARTS GALLERY</p>
+            <h2 class="broadcast-main-heading" id="dashboardMilestoneTitle">STATUS AFTER 40 RESULTS</h2>
           </div>
 
           <!-- Dynamic Animated Team Electric Cards -->
@@ -150,7 +140,7 @@
             <!-- Rendered dynamically by TvApp -->
             <div class="dashboard-loading-state">
               <div class="loading-spinner-ring"></div>
-              <span>Connecting to live championship score server...</span>
+              <span>Loading Inspico Live Standings...</span>
             </div>
           </div>
         </div>
