@@ -1,0 +1,20 @@
+{
+  "name": "art-gallery-pi-result",
+  "version": "1.0.0",
+  "description": "Raspberry Pi 5 TV Screen Chest QR Scanner & Results Display for Art Gallery",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "raspberry-pi",
+    "kiosk",
+    "qr-scanner",
+    "tv-display",
+    "supabase"
+  ],
+  "author": "",
+  "license": "ISC"
+}
