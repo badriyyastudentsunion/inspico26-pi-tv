@@ -457,7 +457,7 @@ class TvApp {
         bar.style.transition = 'none'
         bar.style.width = '0%'
         void bar.offsetWidth // Force reflow
-        bar.style.transition = `width ${duration}s cubic-bezier(0.25, 0.85, 0.25, 1)`
+        bar.style.transition = `width ${duration}s cubic-bezier(0.45, 0.05, 0.2, 1)`
         bar.style.width = `${percent}%`
       }
     })
