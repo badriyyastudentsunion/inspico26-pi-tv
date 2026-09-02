@@ -334,7 +334,7 @@ class TvApp {
     if (teams.length === 0) {
       this.dom.dashboardPodiumGrid.innerHTML = `
         <div class="dashboard-loading-state">
-          <span>No championship points data published yet.</span>
+          <span>Awaiting official championship results...</span>
         </div>
       `
       return
@@ -342,67 +342,57 @@ class TvApp {
 
     const maxPoints = Math.max(...teams.map(t => t.totalPoints), 1)
 
-    // Layout order: Center elevated Rank 1 [Rank 2, Rank 1, Rank 3] if 3 teams
-    let displayOrder = teams
-    if (teams.length === 3) {
-      displayOrder = [teams[1], teams[0], teams[2]]
-    }
+    // STRICT ORDER: Highest points FIRST (#1 on left, #2 center, #3 right)
+    const displayOrder = teams
 
-    this.dom.dashboardPodiumGrid.innerHTML = displayOrder.map(team => {
-      const rank = teams.findIndex(t => t.id === team.id) + 1
+    this.dom.dashboardPodiumGrid.innerHTML = displayOrder.map((team, index) => {
+      const rank = index + 1
       const isLeader = rank === 1
       const percent = Math.min(100, Math.round((team.totalPoints / maxPoints) * 100))
-      
-      const rankPlaqueClass = rank === 1 ? 'rank-gold' : (rank === 2 ? 'rank-silver' : 'rank-bronze')
-      const rankLabel = rank === 1 ? '🥇 1ST PLACE' : (rank === 2 ? '🥈 2ND PLACE' : '🥉 3RD PLACE')
 
       return `
-        <div class="podium-team-card ${isLeader ? 'rank-1-leader' : ''}" style="border-top: 4px solid ${team.color};">
-          <div class="team-accent-glow-top" style="color: ${team.color};"></div>
+        <div class="podium-team-card ${isLeader ? 'rank-1-leader' : ''}" style="--team-color: ${team.color}; border: 2px solid ${team.color};">
+          <div class="team-accent-glow-top" style="background: ${team.color};"></div>
           
           <div class="podium-card-header">
-            <div class="team-rank-plaque ${rankPlaqueClass}">
-              <span>${rankLabel}</span>
+            <div class="team-rank-tag rank-${rank}">
+              <span class="rank-num-val">#0${rank}</span>
+              ${isLeader ? `<span class="crown-icon-glow">👑</span>` : ''}
             </div>
-            ${isLeader ? `<div class="first-place-crown" title="Championship Leader">👑</div>` : ''}
+            ${isLeader ? `<div class="leader-badge-pill">CHAMPIONSHIP LEADER</div>` : ''}
           </div>
 
           <div class="team-identity-block">
             <h2 class="team-display-name">${this.escapeHtml(team.name)}</h2>
-            <div class="team-color-indicator">
-              <span class="color-dot-indicator" style="background: ${team.color}; color: ${team.color};"></span>
-              <span>OFFICIAL TEAM</span>
-            </div>
           </div>
 
           <div class="team-score-block">
-            <div class="score-main-row">
-              <span class="score-points-number" id="pts-count-${team.id}" style="color: ${isLeader ? '#ffd700' : '#fff'}; text-shadow: 0 0 25px ${team.color}66;">
-                ${team.totalPoints}
-              </span>
-              <span class="score-unit-text">PTS</span>
+            <div class="score-points-number" id="pts-count-${team.id}" style="color: #fff; text-shadow: 0 0 45px ${team.color}, 0 0 90px ${team.color}88;">
+              ${team.totalPoints}
             </div>
+            <div class="score-unit-text">POINTS</div>
 
             <div class="team-progress-bar-wrap">
-              <div class="team-progress-bar-fill" style="width: ${percent}%; background: linear-gradient(90deg, ${team.color}, #ffd700); color: ${team.color};"></div>
-            </div>
-
-            <div class="team-breakdown-row">
-              <span class="breakdown-pill">Placement: <strong>${team.placementPoints}</strong></span>
-              <span class="breakdown-pill">Grade: <strong>${team.gradePoints}</strong></span>
+              <div class="team-progress-bar-fill" style="width: ${percent}%; background: linear-gradient(90deg, ${team.color}, #ffffff); box-shadow: 0 0 25px ${team.color};"></div>
             </div>
           </div>
 
+          <div class="team-breakdown-row">
+            <span class="breakdown-item">Placement: <strong>${team.placementPoints}</strong></span>
+            <span class="breakdown-divider">|</span>
+            <span class="breakdown-item">Grade: <strong>${team.gradePoints}</strong></span>
+          </div>
+
           <div class="team-medals-tally">
-            <div class="medal-count-box" title="Gold Medals (1st Place)">
+            <div class="medal-count-box" title="1st Place (Gold)">
               <span class="medal-icon-badge">🥇</span>
               <span>${team.goldCount}</span>
             </div>
-            <div class="medal-count-box" title="Silver Medals (2nd Place)">
+            <div class="medal-count-box" title="2nd Place (Silver)">
               <span class="medal-icon-badge">🥈</span>
               <span>${team.silverCount}</span>
             </div>
-            <div class="medal-count-box" title="Bronze Medals (3rd Place)">
+            <div class="medal-count-box" title="3rd Place (Bronze)">
               <span class="medal-icon-badge">🥉</span>
               <span>${team.bronzeCount}</span>
             </div>
