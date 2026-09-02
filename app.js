@@ -426,35 +426,44 @@ class TvApp {
   }
 
   playBroadcastPointsRoll(teams, maxPoints) {
-    const minPoints = Math.min(...teams.map(t => t.totalPoints), 0)
-    const pointsSpan = maxPoints - minPoints
+    if (!teams || teams.length === 0) return
 
-    teams.forEach(t => {
-      // Proportional Duration:
-      // Lower points finish earlier (~2.4s),
-      // Leading team (#1 with highest points) rolls the longest and lands last with maximum suspense (~3.9s)!
-      const ratio = pointsSpan > 0 ? (t.totalPoints - minPoints) / pointsSpan : 1
-      const teamDuration = 2.4 + (ratio * 1.5) // from 2.4s up to 3.9s!
+    // Sort descending by points (Rank 1 leader, Rank 2, Rank 3)
+    const sorted = [...teams].sort((a, b) => b.totalPoints - a.totalPoints)
+    const t1 = sorted[0]
+    const t2 = sorted[1] || t1
+    const t3 = sorted[2] || t2
 
-      const el = document.getElementById(`pts-count-${t.id}`)
+    // 3-Stage Elimination Odometer Timeline:
+    // Team 3 (Lowest): Spins 2 cycles, finishes and locks first at 2.2s!
+    // Team 2 (Middle): Spins 4 cycles, finishes and locks second at 3.3s!
+    // Team 1 (Leader): Spins 6 cycles, rolls alone and finishes last at 4.6s with ultra-slow crawl!
+    const stages = [
+      { team: t3, duration: 2.2, baseCycles: 2 },
+      { team: t2, duration: 3.3, baseCycles: 4 },
+      { team: t1, duration: 4.6, baseCycles: 6 }
+    ]
+
+    stages.forEach(({ team, duration, baseCycles }) => {
+      const el = document.getElementById(`pts-count-${team.id}`)
       if (el) {
-        this.renderOdometer(el, t.totalPoints, teamDuration)
+        this.renderOdometer(el, team.totalPoints, duration, baseCycles)
       }
 
-      // Progress bar glide synchronized with this team's proportional duration
-      const bar = document.getElementById(`bar-fill-${t.id}`)
-      const percent = Math.min(Math.round((t.totalPoints / maxPoints) * 100), 100)
+      // Synchronized progress bar glide
+      const bar = document.getElementById(`bar-fill-${team.id}`)
+      const percent = Math.min(Math.round((team.totalPoints / maxPoints) * 100), 100)
       if (bar) {
         bar.style.transition = 'none'
         bar.style.width = '0%'
         void bar.offsetWidth // Force reflow
-        bar.style.transition = `width ${teamDuration.toFixed(2)}s cubic-bezier(0.08, 0.82, 0.17, 1)`
+        bar.style.transition = `width ${duration}s cubic-bezier(0.08, 0.82, 0.17, 1)`
         bar.style.width = `${percent}%`
       }
     })
   }
 
-  renderOdometer(container, targetNumber, totalDuration = 3.6) {
+  renderOdometer(container, targetNumber, totalDuration = 3.6, baseCycles = 3) {
     if (!container) return
     const formatted = Number(targetNumber).toLocaleString()
     const chars = formatted.split('')
@@ -467,7 +476,7 @@ class TvApp {
 
     // Stagger step so rightmost digit finishes at exact totalDuration
     const staggerStep = totalDigits > 1 ? 0.38 : 0
-    const startDuration = Math.max(1.6, totalDuration - ((totalDigits - 1) * staggerStep))
+    const startDuration = Math.max(1.4, totalDuration - ((totalDigits - 1) * staggerStep))
 
     container.innerHTML = `<div class="odometer-wrap">` + chars.map((char) => {
       if (!/\d/.test(char)) {
@@ -476,8 +485,8 @@ class TvApp {
 
       const digit = parseInt(char, 10)
       const currentIdx = digitCounter++
-      // Stagger: Leftmost digit stops first (2 cycles), rightmost spins longer and stops last very slow
-      const cycles = 2 + currentIdx
+      // Spin cycles: Leftmost spins baseCycles, rightmost spins baseCycles + extra
+      const cycles = baseCycles + currentIdx
       const finalStep = cycles * 10 + digit
       const duration = startDuration + (currentIdx * staggerStep)
 
@@ -512,7 +521,7 @@ class TvApp {
       setTimeout(() => {
         container.classList.remove('is-rolling')
         container.classList.add('number-settled')
-        setTimeout(() => container.classList.remove('number-settled'), 700)
+        setTimeout(() => container.classList.remove('number-settled'), 800)
       }, totalDuration * 1000)
     })
   }
