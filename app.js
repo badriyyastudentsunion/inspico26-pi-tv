@@ -98,6 +98,7 @@ class TvApp {
 
   async init() {
     this.initClock()
+    this.initHeaderToggle()
     this.initAutoUpdateChecker()
     this.initSupabase()
     this.initAudio()
@@ -288,18 +289,11 @@ class TvApp {
       this.revealedMilestone = revealedMilestone
 
       // Update Header with exact Milestone text (e.g. STATUS AFTER 40 RESULTS)
-      const headingEl = document.querySelector('.broadcast-main-heading')
+      const headingEl = document.getElementById('dashboardMilestoneTitle') || document.querySelector('.broadcast-main-heading')
       if (headingEl) {
         headingEl.textContent = revealedMilestone > 0 
           ? `STATUS AFTER ${revealedMilestone} RESULTS` 
           : `CHAMPIONSHIP LEADERBOARD`
-      }
-
-      const liveBadgeSpan = document.querySelector('.broadcast-live-badge span:last-child')
-      if (liveBadgeSpan) {
-        liveBadgeSpan.textContent = revealedMilestone > 0 
-          ? `POINTS STATUS • AFTER ${revealedMilestone} RESULTS` 
-          : `LIVE POINTS STANDING`
       }
 
       // Render the 3 Team Podium Cards
@@ -368,7 +362,7 @@ class TvApp {
                 </svg>
               ` : ''}
             </div>
-            ${isLeader ? `<div class="leader-badge-pill">LEADER</div>` : ''}
+            ${isLeader ? `<div class="leader-badge-pill">LEADING</div>` : ''}
           </div>
 
           <div class="team-identity-block">
@@ -1542,6 +1536,57 @@ class TvApp {
     }
     update()
     setInterval(update, 1000)
+  }
+
+  // --------------------------------------------------------------------------
+  // TOPBAR TOGGLE & AUTO-HIDE CONTROLLER
+  // --------------------------------------------------------------------------
+  initHeaderToggle() {
+    const header = document.getElementById('tvHeader') || document.querySelector('.tv-header')
+    const toggleBtn = document.getElementById('btnToggleTopHeader')
+    if (!header || !toggleBtn) return
+
+    let hideTimer = null
+
+    const showHeader = () => {
+      header.classList.add('header-revealed')
+      toggleBtn.classList.add('active')
+      resetTimer()
+    }
+
+    const hideHeader = () => {
+      header.classList.remove('header-revealed')
+      toggleBtn.classList.remove('active')
+      if (hideTimer) {
+        clearTimeout(hideTimer)
+        hideTimer = null
+      }
+    }
+
+    const resetTimer = () => {
+      if (hideTimer) clearTimeout(hideTimer)
+      hideTimer = setTimeout(() => {
+        if (document.activeElement === this.dom?.chestInput) return
+        hideHeader()
+      }, 6000)
+    }
+
+    toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      if (header.classList.contains('header-revealed')) {
+        hideHeader()
+      } else {
+        showHeader()
+      }
+    })
+
+    header.addEventListener('mouseleave', () => {
+      if (document.activeElement === this.dom?.chestInput) return
+      resetTimer()
+    })
+
+    header.addEventListener('mousemove', resetTimer)
+    header.addEventListener('keydown', resetTimer)
   }
 
   showLoading(subtext = 'Connecting to festival database...') {

@@ -24,10 +24,17 @@
 
   <div class="tv-app-container">
 
+    <!-- Discreet Top-Right Arrow for Header Toggle with Auto-Hide -->
+    <button class="top-header-toggle-arrow" id="btnToggleTopHeader" title="Show Controls Menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+    </button>
+
     <!-- ============================================================== -->
-    <!-- TV HEADER (Styled identically to V1 LandingPage Topbar) -->
+    <!-- TV HEADER (Hidden by default, slides down on toggle click) -->
     <!-- ============================================================== -->
-    <header class="tv-header">
+    <header class="tv-header" id="tvHeader">
       <div class="header-brand">
         <img src="assets/inspico-logo.svg" alt="Inspico Logo" class="lp-topbar-logo" />
         <img src="assets/inspico.svg" alt="Inspico" class="lp-topbar-word" />
@@ -111,17 +118,26 @@
           <!-- Top Broadcast Ribbon -->
           <div class="dashboard-broadcast-ribbon">
             <div class="broadcast-left-group">
-              <div class="broadcast-live-badge">
-                <span class="live-dot-pulse"></span>
-                <span>LIVE POINTS STANDING</span>
+              <div class="ribbon-brand-group">
+                <img src="assets/inspico-logo.svg" alt="Inspico Logo" class="lp-topbar-logo" />
+                <img src="assets/inspico.svg" alt="Inspico" class="lp-topbar-word" />
+                <div class="brand-divider"></div>
+                <div class="brand-subtitle-wrap">
+                  <span class="brand-eyebrow">BDSA PRESENCE</span>
+                  <span class="brand-subtext">ARTS GALLERY 2026</span>
+                </div>
               </div>
-              <div class="broadcast-title-block">
-                <span class="festival-subhead">INSPICO ARTS FESTIVAL 2026</span>
-                <h1 class="broadcast-main-heading">CHAMPIONSHIP LEADERBOARD</h1>
-              </div>
+
+              <div class="ribbon-brand-divider"></div>
+
+              <h1 class="broadcast-main-heading" id="dashboardMilestoneTitle">STATUS AFTER 40 RESULTS</h1>
             </div>
 
             <div class="broadcast-right-group">
+              <div class="broadcast-live-badge">
+                <span class="live-dot-pulse"></span>
+                <span>LIVE STANDING</span>
+              </div>
               <div class="broadcast-sync-pill" id="dbSyncStatus">
                 <span class="sync-dot"></span>
                 <span id="dbSyncTimeText">Auto-Syncing</span>
