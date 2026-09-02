@@ -144,14 +144,15 @@ class TvApp {
   }
 
   // --------------------------------------------------------------------------
-  // LIVE CHAMPIONSHIP POINTS DASHBOARD ENGINE
+  // LIVE CHAMPIONSHIP POINTS DASHBOARD ENGINE (MILESTONE STATUS BASED)
   // --------------------------------------------------------------------------
   async fetchDashboardPoints() {
     if (!this.supabase) return
 
     try {
-      // 1. Fetch Teams & Published Competition Results in Parallel
-      const [teamsRes, resultsRes, partsCountRes, compsCountRes] = await Promise.all([
+      // 1. Fetch App Settings, Teams, and Published Competition Results in Parallel (matching V1)
+      const [settingsRes, teamsRes, resultsRes, partsCountRes, compsCountRes] = await Promise.all([
+        this.supabase.from('app_settings').select('key, value').in('key', ['leaderboard_revealed_milestone', 'announcer_sequence', 'team_colors']),
         this.supabase.from('teams').select('id, name').order('name'),
         this.supabase.from('competition_results')
           .select('position, placement_points, grade_points, competition_id, participants(team_id)')
@@ -160,23 +161,60 @@ class TvApp {
         this.supabase.from('competitions').select('id', { count: 'exact', head: true })
       ])
 
+      const settings = settingsRes.data || []
       const teamsData = teamsRes.data || []
       const resultsData = resultsRes.data || []
 
-      // Official V1 Team Color mapping
-      const teamColors = {
-        'Sharqawi': '#ff4757', // Coral Red
-        'Zahrawi': '#e056fd',  // Neon Violet
-        'Barmawi': '#1e90ff'   // Sky Blue
+      // Extract milestone & announcer sequence (Same as V1 LandingPage.jsx:1113-1130)
+      const revSetting = settings.find(s => s.key === 'leaderboard_revealed_milestone')
+      const seqSetting = settings.find(s => s.key === 'announcer_sequence')
+      const colorSetting = settings.find(s => s.key === 'team_colors')
+
+      const revealedMilestone = parseInt(revSetting?.value || '0', 10)
+
+      let rawSeq = []
+      try {
+        if (seqSetting?.value) rawSeq = JSON.parse(seqSetting.value)
+      } catch (e) {}
+
+      // Extract only competition IDs from sequence (ignoring divider objects)
+      const seqCompIds = rawSeq
+        .map(i => (typeof i === 'string' ? i : (i?.isDivider ? null : i?.id)))
+        .filter(Boolean)
+
+      // Only include competitions up to the revealed milestone divider (e.g. After 40 Results)
+      const includedComps = revealedMilestone > 0 ? seqCompIds.slice(0, revealedMilestone) : seqCompIds
+      const excludeComps = revealedMilestone > 0 ? seqCompIds.slice(revealedMilestone) : []
+
+      // Try RPC first (matching V1 LandingPage.jsx:1131)
+      let rpcData = null
+      try {
+        const { data } = await this.supabase.rpc('get_team_standings', {
+          exclude_comps: excludeComps || []
+        })
+        if (data && data.length > 0) {
+          rpcData = data
+        }
+      } catch (e) {}
+
+      // Official Team Colors
+      let colorMap = {}
+      if (colorSetting?.value) {
+        try { colorMap = JSON.parse(colorSetting.value) } catch (e) {}
+      }
+      const defaultTeamColors = {
+        'Sharqawi': '#ff4757',
+        'Zahrawi': '#e056fd',
+        'Barmawi': '#1e90ff'
       }
 
-      // 2. Aggregate points per team
+      // Initialize teamMap
       const teamMap = {}
       teamsData.forEach(t => {
         teamMap[t.id] = {
           id: t.id,
           name: t.name,
-          color: teamColors[t.name] || '#B8193C',
+          color: colorMap[t.id] || defaultTeamColors[t.name] || '#B8193C',
           totalPoints: 0,
           placementPoints: 0,
           gradePoints: 0,
@@ -187,21 +225,41 @@ class TvApp {
         }
       })
 
+      // If RPC provided points, set them
+      if (rpcData) {
+        rpcData.forEach(r => {
+          if (teamMap[r.team_id]) {
+            teamMap[r.team_id].totalPoints = Number(r.points) || 0
+          }
+        })
+      }
+
+      // Aggregate details (placement, grade, medals) for included competitions only
       let overallTotalPoints = 0
       const publishedCompIds = new Set()
 
       resultsData.forEach(r => {
+        if (r.competition_id) publishedCompIds.add(r.competition_id)
+
+        // Only count if competition is within the revealed milestone
+        const isIncluded = includedComps.length > 0 
+          ? includedComps.includes(r.competition_id) 
+          : (!excludeComps || !excludeComps.includes(r.competition_id))
+        
+        if (!isIncluded) return
+
         const tid = r.participants?.team_id
         const p = Number(r.placement_points) || 0
         const g = Number(r.grade_points) || 0
         const pts = p + g
         overallTotalPoints += pts
-        if (r.competition_id) publishedCompIds.add(r.competition_id)
 
         if (tid && teamMap[tid]) {
           teamMap[tid].placementPoints += p
           teamMap[tid].gradePoints += g
-          teamMap[tid].totalPoints += pts
+          if (!rpcData) {
+            teamMap[tid].totalPoints += pts
+          }
 
           if (r.position === 1) teamMap[tid].goldCount++
           else if (r.position === 2) teamMap[tid].silverCount++
@@ -211,7 +269,11 @@ class TvApp {
         }
       })
 
-      // 3. Sort Teams: Total Points (Desc), then Placement Points, then Golds
+      if (rpcData) {
+        overallTotalPoints = Object.values(teamMap).reduce((sum, t) => sum + t.totalPoints, 0)
+      }
+
+      // Sort Teams: Total Points (Desc), then Placement Points, then Golds
       const sortedTeams = Object.values(teamMap).sort((a, b) => {
         if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints
         if (b.placementPoints !== a.placementPoints) return b.placementPoints - a.placementPoints
@@ -219,22 +281,40 @@ class TvApp {
       })
 
       this.dashboardPointsData = sortedTeams
+      this.revealedMilestone = revealedMilestone
 
-      // 4. Render the 3 Team Podium Cards
+      // Update Header with exact Milestone text (e.g. STATUS AFTER 40 RESULTS)
+      const headingEl = document.querySelector('.broadcast-main-heading')
+      if (headingEl) {
+        headingEl.textContent = revealedMilestone > 0 
+          ? `STATUS AFTER ${revealedMilestone} RESULTS` 
+          : `CHAMPIONSHIP LEADERBOARD`
+      }
+
+      const liveBadgeSpan = document.querySelector('.broadcast-live-badge span:last-child')
+      if (liveBadgeSpan) {
+        liveBadgeSpan.textContent = revealedMilestone > 0 
+          ? `POINTS STATUS • AFTER ${revealedMilestone} RESULTS` 
+          : `LIVE POINTS STANDING`
+      }
+
+      // Render the 3 Team Podium Cards
       this.renderDashboardPodium(sortedTeams)
 
-      // 5. Update Bottom Stats Tiles
+      // Update Bottom Stats Tiles
       if (this.dom.dbTotalPoints) {
         this.animateNumber(this.dom.dbTotalPoints, overallTotalPoints)
       }
       if (this.dom.dbPublishedEvents) {
-        this.dom.dbPublishedEvents.textContent = `${publishedCompIds.size} / ${compsCountRes.count || '--'}`
+        this.dom.dbPublishedEvents.textContent = revealedMilestone > 0 
+          ? `${revealedMilestone} Results (Status Point)` 
+          : `${publishedCompIds.size} / ${compsCountRes.count || '--'}`
       }
       if (this.dom.dbTotalParticipants && partsCountRes.count !== null) {
         this.dom.dbTotalParticipants.textContent = partsCountRes.count
       }
 
-      // 6. Fetch Latest Published Winner
+      // Fetch Latest Published Winner
       this.fetchLatestWinnerAnnouncement()
 
       // Update sync time
