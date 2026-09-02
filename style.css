@@ -2120,3 +2120,22 @@ kbd {
   transform: translateY(0);
   opacity: 1;
 }
+
+/* ==========================================================================
+   NETLIFY WATERMARK & BADGE SUPPRESSION (100% CLEAN TV SCREEN)
+   ========================================================================== */
+iframe[src*="netlify"],
+div[id*="netlify"],
+div[class*="netlify"],
+[data-netlify-deploy-id],
+netlify-drawer,
+#netlify-badge,
+a[href*="netlify.com"],
+div:has(> a[href*="netlify.com"]) {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
