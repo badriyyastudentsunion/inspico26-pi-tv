@@ -414,14 +414,14 @@ class TvApp {
     // Play initial high-suspense animation
     this.playBroadcastPointsRoll(teams, maxPoints)
 
-    // Oru idavelayitt veendum aa animation kanikkuka (Periodic broadcast replay every 24s)
+    // Oru idavelayitt veendum aa animation kanikkuka (Periodic broadcast replay every 30s)
     if (!this.broadcastReplayInterval) {
       this.broadcastReplayInterval = setInterval(() => {
         if (this.currentView === 'dashboard' && this.latestTeamsData && this.latestTeamsData.length > 0) {
           const currentMax = Math.max(...this.latestTeamsData.map(t => t.totalPoints), 1)
           this.playBroadcastPointsRoll(this.latestTeamsData, currentMax)
         }
-      }, 24000)
+      }, 30000)
     }
   }
 
@@ -434,14 +434,14 @@ class TvApp {
     const t2 = sorted[1] || t1
     const t3 = sorted[2] || t2
 
-    // 3-Stage Elimination Odometer Timeline:
-    // Team 3 (Lowest): Spins 2 cycles, finishes and locks first at 2.2s!
-    // Team 2 (Middle): Spins 4 cycles, finishes and locks second at 3.3s!
-    // Team 1 (Leader): Spins 6 cycles, rolls alone and finishes last at 4.6s with ultra-slow crawl!
+    // 3-Stage Elimination Odometer Timeline (Smooth, Controlled Velocity):
+    // Team 3 (Lowest): Spins 1 cycle, finishes and locks first at 2.8s!
+    // Team 2 (Middle): Spins 2 cycles, finishes and locks second at 4.2s!
+    // Team 1 (Leader): Spins 3 cycles, rolls alone and finishes last at 5.6s with gentle, steady pace and very slow finish!
     const stages = [
-      { team: t3, duration: 2.2, baseCycles: 2 },
-      { team: t2, duration: 3.3, baseCycles: 4 },
-      { team: t1, duration: 4.6, baseCycles: 6 }
+      { team: t3, duration: 2.8, baseCycles: 1 },
+      { team: t2, duration: 4.2, baseCycles: 2 },
+      { team: t1, duration: 5.6, baseCycles: 3 }
     ]
 
     stages.forEach(({ team, duration, baseCycles }) => {
@@ -450,14 +450,14 @@ class TvApp {
         this.renderOdometer(el, team.totalPoints, duration, baseCycles)
       }
 
-      // Synchronized progress bar glide
+      // Synchronized progress bar glide with smooth balanced curve
       const bar = document.getElementById(`bar-fill-${team.id}`)
       const percent = Math.min(Math.round((team.totalPoints / maxPoints) * 100), 100)
       if (bar) {
         bar.style.transition = 'none'
         bar.style.width = '0%'
         void bar.offsetWidth // Force reflow
-        bar.style.transition = `width ${duration}s cubic-bezier(0.08, 0.82, 0.17, 1)`
+        bar.style.transition = `width ${duration}s cubic-bezier(0.25, 0.85, 0.25, 1)`
         bar.style.width = `${percent}%`
       }
     })

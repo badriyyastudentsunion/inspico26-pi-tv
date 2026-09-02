@@ -853,7 +853,7 @@ html, body {
   display: flex;
   flex-direction: column;
   transform: translateY(0);
-  transition: transform var(--roll-duration, 3.4s) cubic-bezier(0.08, 0.82, 0.17, 1);
+  transition: transform var(--roll-duration, 3.4s) cubic-bezier(0.25, 0.85, 0.25, 1);
   will-change: transform;
 }
 
