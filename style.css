@@ -816,16 +816,66 @@ html, body {
   font-size: 160px;
   font-weight: 900;
   font-family: var(--font-main);
-  line-height: 0.88;
-  letter-spacing: -3px;
+  line-height: 0.95;
+  letter-spacing: -2px;
   color: #ffffff;
   text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: "tnum" 1, "lnum" 1;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   transition: transform 0.3s ease, filter 0.3s ease;
   will-change: transform, filter;
+}
+
+/* Rolling Reel Odometer Digits (Slot-Machine / CSS-Tricks Style) */
+.odometer-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.05em;
+  overflow: hidden;
+  line-height: 1;
+}
+
+.odometer-col {
+  display: inline-block;
+  height: 1.05em;
+  overflow: hidden;
+  vertical-align: top;
+  line-height: 1;
+  position: relative;
+}
+
+.odometer-ribbon {
+  display: flex;
+  flex-direction: column;
+  transform: translateY(0);
+  transition: transform var(--roll-duration, 3.4s) cubic-bezier(0.08, 0.82, 0.17, 1);
+  will-change: transform;
+}
+
+.odometer-num {
+  height: 1.05em;
+  line-height: 1.05;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+.odometer-sep {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.05em;
+  line-height: 1;
+  vertical-align: top;
+  margin: 0 -0.05em;
+  opacity: 0.85;
 }
 
 .score-points-number.is-rolling {

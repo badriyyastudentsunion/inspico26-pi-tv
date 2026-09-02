@@ -426,53 +426,95 @@ class TvApp {
   }
 
   playBroadcastPointsRoll(teams, maxPoints) {
+    const minPoints = Math.min(...teams.map(t => t.totalPoints), 0)
+    const pointsSpan = maxPoints - minPoints
+
     teams.forEach(t => {
+      // Proportional Duration:
+      // Lower points finish earlier (~2.4s),
+      // Leading team (#1 with highest points) rolls the longest and lands last with maximum suspense (~3.9s)!
+      const ratio = pointsSpan > 0 ? (t.totalPoints - minPoints) / pointsSpan : 1
+      const teamDuration = 2.4 + (ratio * 1.5) // from 2.4s up to 3.9s!
+
       const el = document.getElementById(`pts-count-${t.id}`)
       if (el) {
-        this.animateNumber(el, t.totalPoints, 3400)
+        this.renderOdometer(el, t.totalPoints, teamDuration)
       }
 
-      // Progress bar glide (Starts at 0% and glides smoothly once over 3.4s)
+      // Progress bar glide synchronized with this team's proportional duration
       const bar = document.getElementById(`bar-fill-${t.id}`)
       const percent = Math.min(Math.round((t.totalPoints / maxPoints) * 100), 100)
       if (bar) {
         bar.style.transition = 'none'
         bar.style.width = '0%'
         void bar.offsetWidth // Force reflow
-        bar.style.transition = 'width 3.4s cubic-bezier(0.08, 0.82, 0.17, 1)'
+        bar.style.transition = `width ${teamDuration.toFixed(2)}s cubic-bezier(0.08, 0.82, 0.17, 1)`
         bar.style.width = `${percent}%`
       }
     })
   }
 
-  animateNumber(element, target, duration = 3400) {
-    if (!element) return
-    const start = 0
-    element.textContent = '0'
-    element.classList.remove('number-settled')
-    element.classList.add('is-rolling')
+  renderOdometer(container, targetNumber, totalDuration = 3.6) {
+    if (!container) return
+    const formatted = Number(targetNumber).toLocaleString()
+    const chars = formatted.split('')
 
-    const startTime = performance.now()
+    let digitCounter = 0
+    const totalDigits = chars.filter(c => /\d/.test(c)).length
 
-    const step = (currentTime) => {
-      const elapsed = currentTime - startTime
-      const progress = Math.min(elapsed / duration, 1)
+    container.classList.remove('number-settled')
+    container.classList.add('is-rolling')
 
-      // Extreme Broadcast Ease-Out: Rapid initial climb, then VERY SLOW last 20% crawl into the exact digits
-      const ease = 1 - Math.pow(1 - progress, 5.5)
-      const currentVal = Math.round(start + (target - start) * ease)
-      element.textContent = currentVal.toLocaleString()
+    // Stagger step so rightmost digit finishes at exact totalDuration
+    const staggerStep = totalDigits > 1 ? 0.38 : 0
+    const startDuration = Math.max(1.6, totalDuration - ((totalDigits - 1) * staggerStep))
 
-      if (progress < 1) {
-        requestAnimationFrame(step)
-      } else {
-        element.textContent = target.toLocaleString()
-        element.classList.remove('is-rolling')
-        element.classList.add('number-settled')
-        setTimeout(() => element.classList.remove('number-settled'), 700)
+    container.innerHTML = `<div class="odometer-wrap">` + chars.map((char) => {
+      if (!/\d/.test(char)) {
+        return `<span class="odometer-sep">${char}</span>`
       }
-    }
-    requestAnimationFrame(step)
+
+      const digit = parseInt(char, 10)
+      const currentIdx = digitCounter++
+      // Stagger: Leftmost digit stops first (2 cycles), rightmost spins longer and stops last very slow
+      const cycles = 2 + currentIdx
+      const finalStep = cycles * 10 + digit
+      const duration = startDuration + (currentIdx * staggerStep)
+
+      let ribbonSpans = ''
+      for (let c = 0; c <= cycles + 1; c++) {
+        for (let d = 0; d <= 9; d++) {
+          ribbonSpans += `<span class="odometer-num">${d}</span>`
+        }
+      }
+
+      return `
+        <span class="odometer-col">
+          <span class="odometer-ribbon" 
+                data-final-step="${finalStep}" 
+                style="--roll-duration: ${duration.toFixed(2)}s;">
+            ${ribbonSpans}
+          </span>
+        </span>
+      `
+    }).join('') + `</div>`
+
+    // Kick off translateY animation on all ribbons
+    requestAnimationFrame(() => {
+      const ribbons = container.querySelectorAll('.odometer-ribbon')
+      ribbons.forEach(ribbon => {
+        const step = parseInt(ribbon.getAttribute('data-final-step'), 10)
+        void ribbon.offsetHeight // force reflow
+        ribbon.style.transform = `translateY(-${step * 1.05}em)`
+      })
+
+      // When final column finishes
+      setTimeout(() => {
+        container.classList.remove('is-rolling')
+        container.classList.add('number-settled')
+        setTimeout(() => container.classList.remove('number-settled'), 700)
+      }, totalDuration * 1000)
+    })
   }
 
   async fetchLatestWinnerAnnouncement() {
