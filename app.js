@@ -338,18 +338,16 @@ class TvApp {
       return
     }
 
+    this.latestTeamsData = teams
     const maxPoints = Math.max(...teams.map(t => t.totalPoints), 1)
 
-    // STRICT ORDER: Highest points FIRST (#1 on left, #2 center, #3 right)
-    const displayOrder = teams
-
-    this.dom.dashboardPodiumGrid.innerHTML = displayOrder.map((team, index) => {
-      const rank = index + 1
-      const isLeader = rank === 1
-      const percent = Math.min(100, Math.round((team.totalPoints / maxPoints) * 100))
+    // Render HTML structure
+    this.dom.dashboardPodiumGrid.innerHTML = teams.map((team, idx) => {
+      const isLeader = idx === 0
+      const rank = idx + 1
 
       return `
-        <div class="podium-team-card ${isLeader ? 'rank-1-leader' : ''}" style="--team-color: ${team.color}; border-top-color: ${team.color};">
+        <div class="podium-team-card rank-${rank} ${isLeader ? 'rank-1-leader' : ''}" style="--team-color: ${team.color};">
           <div class="team-accent-glow-top" style="background: ${team.color};"></div>
           
           <div class="podium-card-header">
@@ -370,13 +368,11 @@ class TvApp {
           </div>
 
           <div class="team-score-block">
-            <div class="score-points-number" id="pts-count-${team.id}">
-              ${team.totalPoints}
-            </div>
+            <div class="score-points-number" id="pts-count-${team.id}" data-val="${team.totalPoints}">0</div>
             <div class="score-unit-text">POINTS</div>
 
             <div class="team-progress-bar-wrap">
-              <div class="team-progress-bar-fill" style="width: ${percent}%; background: ${team.color};"></div>
+              <div class="team-progress-bar-fill" id="bar-fill-${team.id}" style="width: 0%; background: ${team.color};"></div>
             </div>
           </div>
 
@@ -418,20 +414,45 @@ class TvApp {
       `
     }).join('')
 
-    // Animate point numbers
+    // Play initial high-suspense animation
+    this.playBroadcastPointsRoll(teams, maxPoints)
+
+    // Oru idavelayitt veendum aa animation kanikkuka (Periodic broadcast replay every 24s)
+    if (!this.broadcastReplayInterval) {
+      this.broadcastReplayInterval = setInterval(() => {
+        if (this.currentView === 'dashboard' && this.latestTeamsData && this.latestTeamsData.length > 0) {
+          const currentMax = Math.max(...this.latestTeamsData.map(t => t.totalPoints), 1)
+          this.playBroadcastPointsRoll(this.latestTeamsData, currentMax)
+        }
+      }, 24000)
+    }
+  }
+
+  playBroadcastPointsRoll(teams, maxPoints) {
     teams.forEach(t => {
       const el = document.getElementById(`pts-count-${t.id}`)
-      if (el) this.animateNumber(el, t.totalPoints)
+      if (el) {
+        this.animateNumber(el, t.totalPoints, 3400)
+      }
+
+      // Progress bar glide (Starts at 0% and glides smoothly once over 3.4s)
+      const bar = document.getElementById(`bar-fill-${t.id}`)
+      const percent = Math.min(Math.round((t.totalPoints / maxPoints) * 100), 100)
+      if (bar) {
+        bar.style.transition = 'none'
+        bar.style.width = '0%'
+        void bar.offsetWidth // Force reflow
+        bar.style.transition = 'width 3.4s cubic-bezier(0.08, 0.82, 0.17, 1)'
+        bar.style.width = `${percent}%`
+      }
     })
   }
 
-  animateNumber(element, target, duration = 2800) {
+  animateNumber(element, target, duration = 3400) {
     if (!element) return
-    const rawPrev = parseInt(element.getAttribute('data-val') || element.textContent.replace(/[^\d]/g, ''), 10)
-    const start = isNaN(rawPrev) ? 0 : rawPrev
-    if (start === target && element.textContent !== '') return
-
-    element.setAttribute('data-val', target)
+    const start = 0
+    element.textContent = '0'
+    element.classList.remove('number-settled')
     element.classList.add('is-rolling')
 
     const startTime = performance.now()
@@ -440,8 +461,8 @@ class TvApp {
       const elapsed = currentTime - startTime
       const progress = Math.min(elapsed / duration, 1)
 
-      // Quintic ease-out: Fast dramatic initial climb, slow suspenseful landing at final digits
-      const ease = 1 - Math.pow(1 - progress, 5)
+      // Extreme Broadcast Ease-Out: Rapid initial climb, then VERY SLOW last 20% crawl into the exact digits
+      const ease = 1 - Math.pow(1 - progress, 5.5)
       const currentVal = Math.round(start + (target - start) * ease)
       element.textContent = currentVal.toLocaleString()
 
@@ -451,7 +472,7 @@ class TvApp {
         element.textContent = target.toLocaleString()
         element.classList.remove('is-rolling')
         element.classList.add('number-settled')
-        setTimeout(() => element.classList.remove('number-settled'), 600)
+        setTimeout(() => element.classList.remove('number-settled'), 700)
       }
     }
     requestAnimationFrame(step)
