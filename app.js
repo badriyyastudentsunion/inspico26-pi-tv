@@ -103,7 +103,10 @@ class TvApp {
 
       // Milestone Poster Showcase
       dashboardPosterShowcase: document.getElementById('dashboardPosterShowcase'),
-      dashboardPosterImg: document.getElementById('dashboardPosterImg')
+      dashboardPosterImg: document.getElementById('dashboardPosterImg'),
+
+      // Remote Blackout Overlay
+      tvBlackoutOverlay: document.getElementById('tvBlackoutOverlay')
     }
 
     this.seenPublishedCompIds = new Set()
@@ -333,53 +336,35 @@ class TvApp {
       let posterUrl = null
       const galleryPosters = galleryMediaRes?.data || []
 
-      // 1. Check direct milestone match from gallery_media (Primary Official Source)
+      // 1. Strict exact match for the CURRENT active milestone only!
+      // (Never show an old/previous milestone poster if the new one hasn't been uploaded yet)
       if (revealedMilestone > 0) {
         const exactMatch = galleryPosters.find(p => Number(p.milestone) === revealedMilestone)
         if (exactMatch) {
           posterUrl = exactMatch.hd_url || exactMatch.thumb_url
-        } else {
-          // Find closest previous milestone poster <= current milestone
-          const prevMatches = galleryPosters
-            .filter(p => Number(p.milestone) <= revealedMilestone)
-            .sort((a, b) => Number(b.milestone) - Number(a.milestone))
-          if (prevMatches.length > 0) {
-            posterUrl = prevMatches[0].hd_url || prevMatches[0].thumb_url
-          }
         }
-      } else if (galleryPosters.length > 0) {
-        // When milestone is 0 (all), use latest uploaded milestone poster
-        posterUrl = galleryPosters[0].hd_url || galleryPosters[0].thumb_url
-      }
 
-      // 2. Fallback: Search divider objects in announcer sequence
-      if (!posterUrl) {
-        let compCount = 0
-        let lastDividerPoster = null
-        for (const item of rawSeq) {
-          if (!item) continue
-          const isDiv = typeof item !== 'string' && (item.isDivider || item.type === 'divider' || item.divider || item.is_divider)
-          if (isDiv) {
-            const divPoster = item.poster_url || item.posterUrl || item.poster || item.image_url || item.imageUrl || item.image || item.url || item.file_url || item.file || item.src || item.media_url || item.photo || item.photo_url || null
-            if (divPoster) {
-              lastDividerPoster = divPoster
-              if (compCount === revealedMilestone || revealedMilestone === 0) {
-                posterUrl = divPoster
+        // Fallback: Check divider object at exact milestone in announcer sequence
+        if (!posterUrl) {
+          let compCount = 0
+          for (const item of rawSeq) {
+            if (!item) continue
+            const isDiv = typeof item !== 'string' && (item.isDivider || item.type === 'divider' || item.divider || item.is_divider)
+            if (isDiv) {
+              if (compCount === revealedMilestone) {
+                posterUrl = item.poster_url || item.posterUrl || item.poster || item.image_url || item.imageUrl || item.image || item.url || item.file_url || null
                 break
               }
+            } else {
+              compCount++
             }
-          } else {
-            compCount++
           }
         }
-        if (!posterUrl && lastDividerPoster) {
-          posterUrl = lastDividerPoster
-        }
-      }
 
-      // 3. Fallback: Check dedicated milestone poster settings
-      if (!posterUrl && revealedMilestone > 0) {
-        posterUrl = settings.find(s => s.key === `milestone_poster_${revealedMilestone}` || s.key === `poster_${revealedMilestone}` || s.key === `milestone_${revealedMilestone}_poster`)?.value
+        // Fallback: Check dedicated milestone poster setting (e.g. milestone_poster_70)
+        if (!posterUrl) {
+          posterUrl = settings.find(s => s.key === `milestone_poster_${revealedMilestone}` || s.key === `poster_${revealedMilestone}` || s.key === `milestone_${revealedMilestone}_poster`)?.value
+        }
       }
 
       console.log('🖼️ Milestone Poster Extracted from DB:', { revealedMilestone, posterUrl })
@@ -388,6 +373,17 @@ class TvApp {
         this.handleMilestonePoster(posterUrl)
       } else {
         this.clearMilestonePoster()
+      }
+
+      // Check Remote Control TV State (e.g. Blank Screen toggle from /admin?123)
+      const remoteSetting = settings.find(s => s.key === 'tv_remote_control')
+      if (remoteSetting?.value) {
+        try {
+          const remoteState = typeof remoteSetting.value === 'string' ? JSON.parse(remoteSetting.value) : remoteSetting.value
+          this.handleTvRemoteState(remoteState)
+        } catch (e) {}
+      } else {
+        this.handleTvRemoteState({ blank_screen: false })
       }
 
       // Update Bottom Stats Tiles
@@ -751,6 +747,13 @@ class TvApp {
           this.playBroadcastPointsRoll(this.latestTeamsData, currentMax)
         }
       }, 400)
+    }
+  }
+
+  handleTvRemoteState(state) {
+    const isBlank = Boolean(state && state.blank_screen)
+    if (this.dom.tvBlackoutOverlay) {
+      this.dom.tvBlackoutOverlay.classList.toggle('active', isBlank)
     }
   }
 
@@ -1910,14 +1913,25 @@ class TvApp {
           return
         }
 
-        // If deploy timestamp changed, auto-reload TV screen
+        // If deploy timestamp changed, auto-reload TV screen gracefully
         if (data.timestamp && data.timestamp !== currentBuildTimestamp) {
           console.log('🚀 New Netlify build detected! Timestamp:', data.timestamp)
-          this.showToast('🚀 New update deployed! Refreshing TV in 3s...')
           currentBuildTimestamp = data.timestamp
-          setTimeout(() => {
-            window.location.reload(true)
-          }, 3000)
+
+          // If a competition result announcement is currently active on screen, wait until it finishes completely!
+          const performGracefulReload = () => {
+            if (this.isAnnouncementActive || (this.announcementQueue && this.announcementQueue.length > 0)) {
+              console.log('⏳ Competition result currently on TV -> Postponing reload until announcement completes...')
+              setTimeout(performGracefulReload, 3000)
+              return
+            }
+            this.showToast('🚀 New update deployed! Updating TV display...')
+            setTimeout(() => {
+              window.location.reload(true)
+            }, 2000)
+          }
+
+          performGracefulReload()
         }
       } catch (e) {
         // Network silent

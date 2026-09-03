@@ -2627,3 +2627,30 @@ kbd {
   }
 }
 
+/* ==========================================================================
+   REMOTE TV BLACKOUT / BLANK SCREEN OVERLAY
+   ========================================================================== */
+.tv-blackout-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: #000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tv-blackout-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.blackout-stealth-logo {
+  width: 140px;
+  opacity: 0.05;
+  filter: grayscale(1);
+}
+

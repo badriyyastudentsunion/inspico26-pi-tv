@@ -35,7 +35,12 @@ const server = http.createServer((req, res) => {
 
   // Sanitize path to prevent directory traversal
   const safePath = path.normalize(pathname).replace(/^(\.\.[\/\\])+/, '')
-  const filePath = path.join(__dirname, safePath)
+  let filePath = path.join(__dirname, safePath)
+
+  // Clean URL fallback: if no file extension, check for .html
+  if (!path.extname(filePath) && fs.existsSync(filePath + '.html')) {
+    filePath = filePath + '.html'
+  }
 
   fs.stat(filePath, (err, stats) => {
     if (err || !stats.isFile()) {

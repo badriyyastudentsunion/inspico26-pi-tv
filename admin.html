@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Inspico TV - Mobile Admin Remote</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Gayathri:wght@700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-root: #0a0709;
+      --card-bg: rgba(22, 16, 21, 0.85);
+      --card-border: rgba(255, 255, 255, 0.1);
+      --accent: #B8193C;
+      --accent-bright: #FF1A4B;
+      --green: #2ecc71;
+      --text: #ffffff;
+      --text-muted: rgba(255, 255, 255, 0.6);
+      --font-main: 'Inter', -apple-system, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg-root);
+      color: var(--text);
+      font-family: var(--font-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      overflow-x: hidden;
+    }
+
+    .admin-container {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Top Bar */
+    .admin-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+    }
+
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-logo {
+      height: 24px;
+      width: auto;
+    }
+
+    .brand-title {
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      color: #fff;
+    }
+
+    .brand-subtitle {
+      font-size: 10px;
+      color: var(--accent-bright);
+      font-weight: 800;
+      letter-spacing: 1px;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(46, 204, 113, 0.15);
+      border: 1px solid rgba(46, 204, 113, 0.35);
+      padding: 5px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--green);
+    }
+
+    .status-badge.offline {
+      background: rgba(231, 76, 60, 0.15);
+      border-color: rgba(231, 76, 60, 0.35);
+      color: #e74c3c;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    /* Main Toggle Card */
+    .control-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* Master Blackout Button */
+    .blackout-toggle-btn {
+      width: 100%;
+      padding: 24px 20px;
+      border-radius: 20px;
+      border: 2px solid rgba(46, 204, 113, 0.4);
+      background: linear-gradient(135deg, rgba(46, 204, 113, 0.15) 0%, rgba(46, 204, 113, 0.05) 100%);
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      user-select: none;
+    }
+
+    .blackout-toggle-btn:active {
+      transform: scale(0.98);
+    }
+
+    .blackout-toggle-btn.is-blank {
+      border-color: rgba(231, 76, 60, 0.6);
+      background: linear-gradient(135deg, rgba(231, 76, 60, 0.25) 0%, rgba(20, 10, 12, 0.9) 100%);
+    }
+
+    .btn-text-group {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+    }
+
+    .btn-main-label {
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+    }
+
+    .btn-sub-label {
+      font-size: 12px;
+      font-weight: 600;
+      opacity: 0.75;
+    }
+
+    .toggle-pill-indicator {
+      width: 58px;
+      height: 32px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      position: relative;
+      transition: background 0.3s ease;
+    }
+
+    .toggle-thumb {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--green);
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      box-shadow: 0 0 10px var(--green);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .blackout-toggle-btn.is-blank .toggle-pill-indicator {
+      background: rgba(231, 76, 60, 0.3);
+    }
+
+    .blackout-toggle-btn.is-blank .toggle-thumb {
+      left: 30px;
+      background: #e74c3c;
+      box-shadow: 0 0 10px #e74c3c;
+    }
+
+    /* Live TV State Display Box */
+    .tv-live-state-box {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .state-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .state-value {
+      font-size: 14px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    /* Actions Grid */
+    .actions-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .action-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 16px;
+      border-radius: 16px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .action-btn:active {
+      transform: scale(0.98);
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    /* PIN Lock Screen Modal */
+    .pin-lock-modal {
+      position: fixed;
+      inset: 0;
+      background: var(--bg-root);
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .pin-card {
+      width: 100%;
+      max-width: 360px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 28px;
+      padding: 36px 24px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+    }
+
+    .pin-input {
+      width: 100%;
+      padding: 16px;
+      font-size: 24px;
+      font-weight: 900;
+      text-align: center;
+      letter-spacing: 8px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 2px solid var(--accent);
+      border-radius: 16px;
+      color: #fff;
+      outline: none;
+    }
+
+    .pin-submit-btn {
+      width: 100%;
+      padding: 16px;
+      background: var(--accent);
+      border: none;
+      border-radius: 16px;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      background: #1c1014;
+      border: 1px solid var(--accent);
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 14px;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 9999;
+    }
+
+    .toast.active {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PIN LOCK MODAL -->
+  <div class="pin-lock-modal" id="pinLockModal">
+    <div class="pin-card">
+      <img src="assets/inspico-logo.svg" alt="Inspico Logo" style="height: 40px; margin-bottom: 4px;" />
+      <h2 style="font-size: 20px; font-weight: 800;">TV Remote Admin</h2>
+      <p style="font-size: 13px; color: var(--text-muted);">Enter Security PIN or open with ?123</p>
+      
+      <input type="password" id="pinInputField" class="pin-input" placeholder="•••" maxlength="6" inputmode="numeric" />
+      <button class="pin-submit-btn" id="btnSubmitPin">UNLOCK CONSOLE</button>
+    </div>
+  </div>
+
+  <div class="admin-container" id="adminApp" style="display: none;">
+
+    <!-- TOP HEADER -->
+    <header class="admin-header">
+      <div class="brand-wrap">
+        <img src="assets/inspico.svg" alt="Inspico" class="brand-logo" />
+        <div>
+          <div class="brand-title">TV REMOTE CONTROLLER</div>
+          <div class="brand-subtitle">LIVE BROADCAST CONSOLE</div>
+        </div>
+      </div>
+      <div class="status-badge" id="supabaseStatusBadge">
+        <span class="status-dot"></span>
+        <span id="supabaseStatusText">CONNECTED</span>
+      </div>
+    </header>
+
+    <!-- MASTER SCREEN BLANK TOGGLE CARD -->
+    <section class="control-card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px;"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
+          TV Screen Blackout
+        </h2>
+      </div>
+      <p class="card-desc">Instantly turn the TV display screen pitch black (Standby / Blackout), or restore the live standings broadcast.</p>
+
+      <button class="blackout-toggle-btn" id="btnToggleBlackout">
+        <div class="btn-text-group">
+          <span class="btn-main-label" id="blackoutMainLabel">TV IS LIVE</span>
+          <span class="btn-sub-label" id="blackoutSubLabel">Tap to Blackout TV Screen</span>
+        </div>
+        <div class="toggle-pill-indicator">
+          <div class="toggle-thumb"></div>
+        </div>
+      </button>
+
+      <div class="tv-live-state-box">
+        <span class="state-label">CURRENT TV STATE:</span>
+        <span class="state-value" id="currentTvStateText">🟢 BROADCASTING LIVE</span>
+      </div>
+    </section>
+
+    <!-- ADDITIONAL CONTROLS -->
+    <section class="control-card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          Quick Actions
+        </h2>
+      </div>
+
+      <div class="actions-grid">
+        <button class="action-btn" id="btnForceRefreshTv">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          <span>Force Refresh TV Standings Roll</span>
+        </button>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="toast" id="adminToast">Notification</div>
+
+  <!-- Supabase JS -->
+  <script src="vendor/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    const SUPABASE_URL = 'https://bqmvrhqztxsgjosicsdj.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJxbXZyaHF6dHhzZ2pvc2ljc2RqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4MzkwODksImV4cCI6MjA5OTQxNTA4OX0.ExrJr9AaLGxo4KxybSY9UCPWXcSolz2OAZTGeHnNnUc';
+
+    class TvAdminRemote {
+      constructor() {
+        this.supabase = null;
+        this.isBlankScreen = false;
+
+        this.dom = {
+          pinLockModal: document.getElementById('pinLockModal'),
+          pinInputField: document.getElementById('pinInputField'),
+          btnSubmitPin: document.getElementById('btnSubmitPin'),
+          adminApp: document.getElementById('adminApp'),
+          btnToggleBlackout: document.getElementById('btnToggleBlackout'),
+          blackoutMainLabel: document.getElementById('blackoutMainLabel'),
+          blackoutSubLabel: document.getElementById('blackoutSubLabel'),
+          currentTvStateText: document.getElementById('currentTvStateText'),
+          btnForceRefreshTv: document.getElementById('btnForceRefreshTv'),
+          supabaseStatusBadge: document.getElementById('supabaseStatusBadge'),
+          supabaseStatusText: document.getElementById('supabaseStatusText'),
+          adminToast: document.getElementById('adminToast')
+        };
+
+        this.init();
+      }
+
+      init() {
+        this.checkAuth();
+        this.initSupabase();
+        this.initListeners();
+      }
+
+      checkAuth() {
+        const urlParams = window.location.search;
+        const has123 = urlParams.includes('123') || localStorage.getItem('admin_auth_123') === 'true';
+
+        if (has123) {
+          this.unlockConsole();
+        } else {
+          this.dom.btnSubmitPin.addEventListener('click', () => this.handlePinSubmit());
+          this.dom.pinInputField.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.handlePinSubmit();
+          });
+        }
+      }
+
+      handlePinSubmit() {
+        const val = this.dom.pinInputField.value.trim();
+        if (val === '123') {
+          localStorage.setItem('admin_auth_123', 'true');
+          this.unlockConsole();
+        } else {
+          this.showToast('❌ Incorrect PIN. Use 123');
+          this.dom.pinInputField.value = '';
+        }
+      }
+
+      unlockConsole() {
+        this.dom.pinLockModal.style.display = 'none';
+        this.dom.adminApp.style.display = 'flex';
+      }
+
+      initSupabase() {
+        try {
+          if (window.supabase) {
+            this.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            this.fetchCurrentState();
+            this.subscribeRealtime();
+          }
+        } catch (e) {
+          console.error('Supabase init error:', e);
+          this.dom.supabaseStatusBadge.classList.add('offline');
+          this.dom.supabaseStatusText.textContent = 'OFFLINE';
+        }
+      }
+
+      async fetchCurrentState() {
+        if (!this.supabase) return;
+
+        try {
+          const { data, error } = await this.supabase
+            .from('app_settings')
+            .select('value')
+            .eq('key', 'tv_remote_control')
+            .maybeSingle();
+
+          if (data?.value) {
+            const state = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+            this.updateUiState(Boolean(state.blank_screen));
+          } else {
+            this.updateUiState(false);
+          }
+        } catch (e) {
+          console.warn('Error fetching remote control state:', e);
+        }
+      }
+
+      subscribeRealtime() {
+        if (!this.supabase) return;
+
+        this.supabase
+          .channel('public:tv_remote_control')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload) => {
+            if (payload?.new?.key === 'tv_remote_control') {
+              try {
+                const state = typeof payload.new.value === 'string' ? JSON.parse(payload.new.value) : payload.new.value;
+                this.updateUiState(Boolean(state.blank_screen));
+              } catch (e) {}
+            }
+          })
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              this.dom.supabaseStatusBadge.classList.remove('offline');
+              this.dom.supabaseStatusText.textContent = 'CONNECTED';
+            } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+              this.dom.supabaseStatusBadge.classList.add('offline');
+              this.dom.supabaseStatusText.textContent = 'RECONNECTING';
+            }
+          });
+      }
+
+      initListeners() {
+        this.dom.btnToggleBlackout.addEventListener('click', () => {
+          if (navigator.vibrate) navigator.vibrate(30);
+          this.toggleBlackout();
+        });
+
+        this.dom.btnForceRefreshTv.addEventListener('click', () => {
+          if (navigator.vibrate) navigator.vibrate(30);
+          this.forceRefreshTv();
+        });
+      }
+
+      async toggleBlackout() {
+        const nextState = !this.isBlankScreen;
+        this.updateUiState(nextState);
+
+        try {
+          const payload = {
+            blank_screen: nextState,
+            updated_at: Date.now()
+          };
+
+          const { error } = await this.supabase
+            .from('app_settings')
+            .upsert({
+              key: 'tv_remote_control',
+              value: JSON.stringify(payload)
+            }, { onConflict: 'key' });
+
+          if (error) throw error;
+
+          this.showToast(nextState ? '⚫ TV Screen Blacked Out' : '🟢 TV Screen Restored to Live');
+        } catch (e) {
+          console.error('Failed to update remote blackout state:', e);
+          this.showToast('⚠️ Update failed, check connection');
+          this.updateUiState(!nextState); // rollback
+        }
+      }
+
+      async forceRefreshTv() {
+        try {
+          const payload = {
+            force_refresh: Date.now(),
+            blank_screen: this.isBlankScreen
+          };
+
+          await this.supabase
+            .from('app_settings')
+            .upsert({
+              key: 'tv_remote_control',
+              value: JSON.stringify(payload)
+            }, { onConflict: 'key' });
+
+          this.showToast('🔄 TV Standings Roll Triggered!');
+        } catch (e) {
+          this.showToast('Failed to trigger TV refresh');
+        }
+      }
+
+      updateUiState(isBlank) {
+        this.isBlankScreen = isBlank;
+
+        if (isBlank) {
+          this.dom.btnToggleBlackout.classList.add('is-blank');
+          this.dom.blackoutMainLabel.textContent = 'TV IS BLANK';
+          this.dom.blackoutSubLabel.textContent = 'Tap to Restore Live TV Broadcast';
+          this.dom.currentTvStateText.textContent = '⚫ BLACKOUT (BLANK SCREEN)';
+          this.dom.currentTvStateText.style.color = '#e74c3c';
+        } else {
+          this.dom.btnToggleBlackout.classList.remove('is-blank');
+          this.dom.blackoutMainLabel.textContent = 'TV IS LIVE';
+          this.dom.blackoutSubLabel.textContent = 'Tap to Blackout TV Screen';
+          this.dom.currentTvStateText.textContent = '🟢 BROADCASTING LIVE';
+          this.dom.currentTvStateText.style.color = 'var(--green)';
+        }
+      }
+
+      showToast(msg) {
+        this.dom.adminToast.textContent = msg;
+        this.dom.adminToast.classList.add('active');
+        setTimeout(() => {
+          this.dom.adminToast.classList.remove('active');
+        }, 2200);
+      }
+    }
+
+    window.tvAdmin = new TvAdminRemote();
+  </script>
+</body>
+</html>
