@@ -2283,3 +2283,318 @@ kbd {
   transform: translateY(0);
   opacity: 1;
 }
+
+/* ==========================================================================
+   BREAKING RESULT ANNOUNCEMENT OVERLAY (20s Auto-Display)
+   ========================================================================== */
+.result-announcement-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(6, 4, 6, 0.85);
+  backdrop-filter: blur(36px) saturate(200%);
+  -webkit-backdrop-filter: blur(36px) saturate(200%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: scale(0.96);
+}
+
+.result-announcement-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1);
+}
+
+.result-announcement-card {
+  width: 100%;
+  max-width: 1280px;
+  background: rgba(20, 14, 18, 0.82);
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  border-radius: 36px;
+  padding: 44px 52px;
+  box-shadow: 0 32px 120px rgba(0, 0, 0, 0.9), 0 0 80px rgba(255, 215, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(28px);
+  animation: announcementCardEntrance 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes announcementCardEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.announcement-glow-top {
+  position: absolute;
+  top: 0;
+  left: 5%;
+  right: 5%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #ffd700, #ff4757, #ffd700, transparent);
+  filter: blur(2px);
+}
+
+.announcement-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.announcement-badge-pill {
+  background: rgba(184, 25, 60, 0.28);
+  border: 1px solid rgba(255, 215, 0, 0.6);
+  color: #ffd700;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 3.5px;
+  border-radius: 999px;
+  padding: 8px 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  text-transform: uppercase;
+  box-shadow: 0 0 25px rgba(255, 215, 0, 0.25);
+}
+
+.announcement-live-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff4757;
+  box-shadow: 0 0 12px #ff4757;
+  animation: liveDotPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes liveDotPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.6; }
+}
+
+.announcement-close-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.7);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.announcement-close-btn:hover {
+  background: rgba(255, 71, 87, 0.3);
+  color: #fff;
+  border-color: #ff4757;
+  transform: scale(1.08);
+}
+
+.announcement-comp-section {
+  text-align: center;
+  margin-top: 24px;
+}
+
+.announcement-category-tag {
+  font-size: 14px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.announcement-comp-title {
+  font-size: 48px;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: -0.5px;
+  text-transform: uppercase;
+  margin-top: 6px;
+  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.8), 0 0 40px rgba(255, 215, 0, 0.2);
+}
+
+/* 3 Winners Podium Grid */
+.announcement-podium-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-top: 36px;
+  align-items: stretch;
+}
+
+.ann-winner-card {
+  background: rgba(26, 18, 23, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 28px;
+  padding: 32px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  transition: transform 0.3s ease, border-color 0.3s ease;
+}
+
+/* 1st Place Champion Highlight */
+.ann-winner-card.pos-1 {
+  border: 2px solid rgba(255, 215, 0, 0.75);
+  background: linear-gradient(180deg, rgba(255, 215, 0, 0.14) 0%, rgba(26, 18, 23, 0.85) 100%);
+  transform: scale(1.04);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7), 0 0 50px rgba(255, 215, 0, 0.25);
+  z-index: 2;
+}
+
+.ann-winner-card.pos-2 {
+  border: 1.5px solid rgba(220, 225, 240, 0.45);
+  background: linear-gradient(180deg, rgba(220, 225, 240, 0.08) 0%, rgba(26, 18, 23, 0.75) 100%);
+}
+
+.ann-winner-card.pos-3 {
+  border: 1.5px solid rgba(215, 145, 75, 0.45);
+  background: linear-gradient(180deg, rgba(215, 145, 75, 0.08) 0%, rgba(26, 18, 23, 0.75) 100%);
+}
+
+.ann-rank-badge {
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  padding: 6px 18px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ann-winner-card.pos-1 .ann-rank-badge {
+  background: linear-gradient(135deg, #ffd700, #ffaa00);
+  color: #1a0f00;
+  box-shadow: 0 4px 20px rgba(255, 215, 0, 0.4);
+}
+
+.ann-winner-card.pos-2 .ann-rank-badge {
+  background: linear-gradient(135deg, #e0e5f0, #a0a8b8);
+  color: #0f141e;
+  box-shadow: 0 4px 20px rgba(220, 225, 240, 0.3);
+}
+
+.ann-winner-card.pos-3 .ann-rank-badge {
+  background: linear-gradient(135deg, #e69550, #b06020);
+  color: #ffffff;
+  box-shadow: 0 4px 20px rgba(215, 145, 75, 0.3);
+}
+
+.ann-chest-badge {
+  font-size: 26px;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 1.5px;
+  background: rgba(255, 255, 255, 0.09);
+  padding: 4px 18px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.ann-student-name {
+  font-size: 32px;
+  font-weight: 900;
+  color: #ffffff;
+  line-height: 1.15;
+  margin-bottom: 12px;
+  letter-spacing: -0.5px;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
+  max-width: 100%;
+  word-break: break-word;
+}
+
+.ann-team-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--team-col, rgba(255, 255, 255, 0.2));
+  border-radius: 999px;
+  padding: 6px 18px;
+  margin-bottom: 14px;
+  box-shadow: 0 0 20px var(--team-col, rgba(184, 25, 60, 0.3));
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.ann-team-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.ann-grade-tag {
+  font-size: 15px;
+  font-weight: 900;
+  color: #4cd137;
+  background: rgba(76, 209, 55, 0.15);
+  border: 1px solid rgba(76, 209, 55, 0.4);
+  padding: 4px 16px;
+  border-radius: 999px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+/* Bottom 20s Countdown Footer */
+.announcement-footer {
+  margin-top: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.announcement-timer-text {
+  font-size: 14px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.announcement-progress-track {
+  width: 100%;
+  max-width: 520px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.announcement-progress-bar {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #ffd700, #ff4757);
+  border-radius: 999px;
+  transform-origin: left;
+  transition: width 20s linear;
+}
+

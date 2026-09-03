@@ -90,8 +90,21 @@ class TvApp {
       tabFilterScheduled: document.getElementById('tabFilterScheduled'),
       countAllEvents: document.getElementById('countAllEvents'),
       countPublishedEvents: document.getElementById('countPublishedEvents'),
-      countScheduledEvents: document.getElementById('countScheduledEvents')
+      countScheduledEvents: document.getElementById('countScheduledEvents'),
+
+      // Breaking Result Announcement Overlay
+      resultAnnouncementOverlay: document.getElementById('resultAnnouncementOverlay'),
+      announcementCompCategory: document.getElementById('announcementCompCategory'),
+      announcementCompTitle: document.getElementById('announcementCompTitle'),
+      announcementPodiumGrid: document.getElementById('announcementPodiumGrid'),
+      announcementTimerText: document.getElementById('announcementTimerText'),
+      announcementProgressBar: document.getElementById('announcementProgressBar'),
+      btnCloseAnnouncement: document.getElementById('btnCloseAnnouncement')
     }
+
+    this.seenPublishedCompIds = new Set()
+    this.isAnnouncementActive = false
+    this.announcementCountdownInterval = null
 
     this.init()
   }
@@ -109,8 +122,10 @@ class TvApp {
     await this.fetchDashboardPoints()
     this.startDashboardSync()
 
-    // 2. Load standby stats in background
+    // 2. Load standby stats in background & set up live result announcer
     this.fetchStandbyData()
+    await this.initPublishedResultHistory()
+    this.initRealtimeResultListener()
 
     // 3. Check if initial hash is present in URL (e.g. #108)
     const hash = window.location.hash.replace('#', '').trim()
@@ -551,16 +566,274 @@ class TvApp {
     } catch (e) {}
   }
 
+  // --------------------------------------------------------------------------
+  // BREAKING LIVE RESULT ANNOUNCEMENT ENGINE (20s Auto-Display)
+  // --------------------------------------------------------------------------
+  async initPublishedResultHistory() {
+    this.seenPublishedCompIds = new Set()
+    if (!this.supabase) return
+    try {
+      const { data } = await this.supabase
+        .from('competition_results')
+        .select('competition_id')
+        .eq('published', true)
+      if (data) {
+        data.forEach(r => {
+          if (r.competition_id) this.seenPublishedCompIds.add(r.competition_id)
+        })
+      }
+    } catch (e) {
+      console.warn('Error fetching published competition history:', e)
+    }
+  }
+
+  initRealtimeResultListener() {
+    if (!this.supabase) return
+    try {
+      if (this.realtimeChannel) {
+        this.supabase.removeChannel(this.realtimeChannel)
+      }
+
+      this.realtimeChannel = this.supabase
+        .channel('public:realtime_competition_results')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'competition_results' }, (payload) => {
+          console.log('⚡ Instant Realtime publish event received:', payload)
+          const compId = payload?.new?.competition_id || payload?.old?.competition_id
+          if (compId && payload?.new?.published) {
+            this.fetchAndAnnounceCompetition(compId)
+          } else {
+            this.checkForNewlyPublishedCompetitions()
+          }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'competitions' }, () => {
+          this.checkForNewlyPublishedCompetitions()
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, () => {
+          this.fetchDashboardPoints()
+        })
+        .subscribe((status, err) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Realtime WebSocket connected! Instant 0ms result announcements active.')
+          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+            console.warn('⚠️ Realtime WebSocket disconnected, reconnecting in 5s...', err)
+            setTimeout(() => this.initRealtimeResultListener(), 5000)
+          }
+        })
+    } catch (e) {
+      console.warn('Realtime subscription error:', e)
+    }
+  }
+
+  async fetchAndAnnounceCompetition(compId) {
+    if (!compId || this.seenPublishedCompIds.has(compId) || this.isAnnouncementActive) return
+    this.seenPublishedCompIds.add(compId)
+
+    try {
+      const { data: results, error } = await this.supabase
+        .from('competition_results')
+        .select(`
+          id, position, grade, placement_points, grade_points, published_at, competition_id,
+          participants(id, name, chess_number, teams(id, name)),
+          competitions(id, name, category)
+        `)
+        .eq('competition_id', compId)
+        .eq('published', true)
+
+      if (error || !results || results.length === 0) return
+
+      const compName = results[0]?.competitions?.name || 'Competition Result'
+      const compCategory = results[0]?.competitions?.category || 'Arts Festival'
+
+      this.triggerBreakingResultAnnouncement(compName, compCategory, results)
+    } catch (e) {
+      console.warn('Error fetching instant competition announcement:', e)
+    }
+  }
+
+  async checkForNewlyPublishedCompetitions() {
+    if (!this.supabase || this.isAnnouncementActive) return
+
+    try {
+      const { data: recentWins, error } = await this.supabase
+        .from('competition_results')
+        .select(`
+          id, position, grade, placement_points, grade_points, published_at, competition_id,
+          participants(id, name, chess_number, teams(id, name)),
+          competitions(id, name, category)
+        `)
+        .eq('published', true)
+        .order('published_at', { ascending: false })
+        .limit(30)
+
+      if (error || !recentWins || recentWins.length === 0) return
+
+      // Find any newly published competition not in seen history
+      const newCompMap = {}
+      for (const r of recentWins) {
+        if (r.competition_id && !this.seenPublishedCompIds.has(r.competition_id)) {
+          if (!newCompMap[r.competition_id]) {
+            newCompMap[r.competition_id] = {
+              compName: r.competitions?.name || 'Competition Result',
+              compCategory: r.competitions?.category || 'Arts Festival',
+              results: []
+            }
+          }
+          newCompMap[r.competition_id].results.push(r)
+        }
+      }
+
+      const newCompIds = Object.keys(newCompMap)
+      if (newCompIds.length > 0) {
+        const firstNewCompId = newCompIds[0]
+        const compData = newCompMap[firstNewCompId]
+
+        // Mark as seen
+        this.seenPublishedCompIds.add(firstNewCompId)
+
+        // Show 20-second Breaking Result Announcement
+        this.triggerBreakingResultAnnouncement(compData.compName, compData.compCategory, compData.results)
+      }
+    } catch (e) {
+      console.warn('Error checking newly published competitions:', e)
+    }
+  }
+
+  triggerBreakingResultAnnouncement(compName, compCategory, results) {
+    if (!this.dom.resultAnnouncementOverlay) return
+    this.isAnnouncementActive = true
+
+    if (this.dom.announcementCompTitle) {
+      this.dom.announcementCompTitle.textContent = (compName || 'COMPETITION RESULT').toUpperCase()
+    }
+    if (this.dom.announcementCompCategory) {
+      this.dom.announcementCompCategory.textContent = `${compCategory ? compCategory.toUpperCase() + ' • ' : ''}RESULT PUBLISHED`
+    }
+
+    // Sort winners: 1st, 2nd, 3rd
+    const sorted = [...(results || [])].filter(r => r.position && r.position > 0).sort((a, b) => a.position - b.position)
+
+    const defaultColors = {
+      'Sharqawi': '#ff4757',
+      'Zahrawi': '#e056fd',
+      'Barmawi': '#1e90ff'
+    }
+
+    let podiumHtml = ''
+    if (sorted.length > 0) {
+      podiumHtml = sorted.slice(0, 3).map(r => {
+        const pos = r.position || 1
+        const posClass = `pos-${pos}`
+        let posLabel = '🥇 1ST PLACE'
+        if (pos === 2) posLabel = '🥈 2ND PLACE'
+        else if (pos === 3) posLabel = '🥉 3RD PLACE'
+
+        const student = r.participants?.name || 'Participant'
+        const chest = r.participants?.chess_number || '-'
+        const teamName = r.participants?.teams?.name || 'Team'
+        const teamColor = defaultColors[teamName] || '#B8193C'
+        const grade = r.grade ? `GRADE ${r.grade}` : ''
+
+        return `
+          <div class="ann-winner-card ${posClass}">
+            <div class="ann-rank-badge">${posLabel}</div>
+            <div class="ann-chest-badge">#${this.escapeHtml(chest)}</div>
+            <div class="ann-student-name">${this.escapeHtml(student)}</div>
+            <div class="ann-team-pill" style="--team-col: ${teamColor};">
+              <span class="ann-team-dot" style="background: ${teamColor};"></span>
+              <span>${this.escapeHtml(teamName)}</span>
+            </div>
+            ${grade ? `<div class="ann-grade-tag">${this.escapeHtml(grade)}</div>` : ''}
+          </div>
+        `
+      }).join('')
+    } else {
+      podiumHtml = `
+        <div style="grid-column: 1 / -1; padding: 40px; text-align: center; color: rgba(255,255,255,0.7); font-size: 20px;">
+          Competition Result Announced
+        </div>
+      `
+    }
+
+    if (this.dom.announcementPodiumGrid) {
+      this.dom.announcementPodiumGrid.innerHTML = podiumHtml
+    }
+
+    // Show Overlay
+    this.dom.resultAnnouncementOverlay.classList.add('active')
+
+    // Audio chime
+    this.playScanSuccessChime()
+
+    // 20-Second Countdown
+    let timeLeft = 20
+    if (this.dom.announcementTimerText) {
+      this.dom.announcementTimerText.textContent = `Returning to Standings in ${timeLeft}s...`
+    }
+
+    if (this.dom.announcementProgressBar) {
+      this.dom.announcementProgressBar.style.transition = 'none'
+      this.dom.announcementProgressBar.style.width = '100%'
+      void this.dom.announcementProgressBar.offsetWidth // force reflow
+      this.dom.announcementProgressBar.style.transition = 'width 20s linear'
+      this.dom.announcementProgressBar.style.width = '0%'
+    }
+
+    if (this.announcementCountdownInterval) {
+      clearInterval(this.announcementCountdownInterval)
+    }
+
+    this.announcementCountdownInterval = setInterval(() => {
+      timeLeft--
+      if (this.dom.announcementTimerText) {
+        this.dom.announcementTimerText.textContent = `Returning to Standings in ${timeLeft}s...`
+      }
+
+      if (timeLeft <= 0) {
+        this.closeResultAnnouncement()
+      }
+    }, 1000)
+  }
+
+  closeResultAnnouncement() {
+    if (this.announcementCountdownInterval) {
+      clearInterval(this.announcementCountdownInterval)
+      this.announcementCountdownInterval = null
+    }
+
+    if (this.dom.resultAnnouncementOverlay) {
+      this.dom.resultAnnouncementOverlay.classList.remove('active')
+    }
+
+    this.isAnnouncementActive = false
+
+    // Refresh standings & replay points roll with newly published points
+    this.fetchDashboardPoints()
+    this.fetchStandbyData()
+  }
+
+  testResultAnnouncement() {
+    this.triggerBreakingResultAnnouncement(
+      'KATHAPRASANGAM (SENIOR BOYS)',
+      'GENERAL • STAGE 1',
+      [
+        { position: 1, grade: 'A+', participants: { name: 'MUHAMMED SHAN', chess_number: '108', teams: { name: 'Sharqawi' } } },
+        { position: 2, grade: 'A', participants: { name: 'AHMED RIZWAN', chess_number: '215', teams: { name: 'Zahrawi' } } },
+        { position: 3, grade: 'A', participants: { name: 'BILAL HASSAN', chess_number: '304', teams: { name: 'Barmawi' } } }
+      ]
+    )
+  }
+
   startDashboardSync() {
     if (this.dashboardSyncInterval) {
       clearInterval(this.dashboardSyncInterval)
     }
-    // Auto sync every 20 seconds
+    // Auto sync every 12 seconds
     this.dashboardSyncInterval = setInterval(() => {
       if (this.currentView === 'dashboard') {
         this.fetchDashboardPoints()
       }
-    }, 20000)
+      this.checkForNewlyPublishedCompetitions()
+    }, 12000)
   }
 
   async fetchStandbyData() {
@@ -1171,6 +1444,25 @@ class TvApp {
           break
 
         case 'Escape':
+          if (this.isAnnouncementActive) {
+            e.preventDefault()
+            this.closeResultAnnouncement()
+            break
+          }
+          if (this.isHelpModalOpen) {
+            this.toggleHelpModal()
+            break
+          }
+          if (!isSearchInputFocused) {
+            e.preventDefault()
+            if (this.currentView === 'result') {
+              this.switchView('standby')
+            } else {
+              this.switchView('dashboard')
+            }
+          }
+          break
+
         case 'Backspace':
           if (!isSearchInputFocused) {
             e.preventDefault()
@@ -1179,6 +1471,14 @@ class TvApp {
             } else {
               this.switchView('dashboard')
             }
+          }
+          break
+
+        case 't':
+        case 'T':
+          if (!isSearchInputFocused) {
+            e.preventDefault()
+            this.testResultAnnouncement()
           }
           break
 
@@ -1396,6 +1696,14 @@ class TvApp {
     this.dom.btnHelp?.addEventListener('click', () => this.toggleHelpModal())
     this.dom.btnCloseHelp?.addEventListener('click', () => this.toggleHelpModal())
     this.dom.btnPauseCountdown?.addEventListener('click', () => this.togglePauseCountdown())
+
+    // Result Announcement Close Listeners
+    this.dom.btnCloseAnnouncement?.addEventListener('click', () => this.closeResultAnnouncement())
+    this.dom.resultAnnouncementOverlay?.addEventListener('click', (e) => {
+      if (e.target === this.dom.resultAnnouncementOverlay) {
+        this.closeResultAnnouncement()
+      }
+    })
 
     const savedFlip = localStorage.getItem('camera_flip_mirrored')
     if (savedFlip === 'false') {

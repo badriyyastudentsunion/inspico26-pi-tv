@@ -94,6 +94,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <span>[?]</span>
           </button>
+          <a href="https://inspico26.web.app/login" target="_blank" class="shortcut-btn header-login-btn" id="btnLogin" title="Admin Login">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+            <span>LOGIN</span>
+          </a>
         </div>
       </div>
     </header>
@@ -407,6 +411,43 @@
     </main>
 
     <!-- ============================================================== -->
+    <!-- BREAKING LIVE RESULT ANNOUNCEMENT OVERLAY (20s Auto-Display) -->
+    <!-- ============================================================== -->
+    <div class="result-announcement-overlay" id="resultAnnouncementOverlay">
+      <div class="result-announcement-card">
+        <div class="announcement-glow-top"></div>
+        
+        <!-- Header Banner -->
+        <div class="announcement-header">
+          <div class="announcement-badge-pill">
+            <span class="announcement-live-dot"></span>
+            <span>⚡ LIVE RESULT ANNOUNCEMENT</span>
+          </div>
+          <button class="announcement-close-btn" id="btnCloseAnnouncement" title="Dismiss (Esc)">&times;</button>
+        </div>
+
+        <!-- Competition Info -->
+        <div class="announcement-comp-section">
+          <div class="announcement-category-tag" id="announcementCompCategory">ARTS GALLERY • RESULT PUBLISHED</div>
+          <h2 class="announcement-comp-title" id="announcementCompTitle">COMPETITION NAME</h2>
+        </div>
+
+        <!-- 3 Winners Podium Grid (1st, 2nd, 3rd) -->
+        <div class="announcement-podium-grid" id="announcementPodiumGrid">
+          <!-- Populated dynamically via JS -->
+        </div>
+
+        <!-- Bottom Status / 20s Countdown Timer -->
+        <div class="announcement-footer">
+          <div class="announcement-timer-text" id="announcementTimerText">Returning to Standings in 20s...</div>
+          <div class="announcement-progress-track">
+            <div class="announcement-progress-bar" id="announcementProgressBar"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
     <!-- KEYBOARD SHORTCUTS HELP MODAL -->
     <!-- ============================================================== -->
     <div class="modal-backdrop" id="helpModal">
@@ -426,6 +467,7 @@
           <div class="modal-shortcut-row"><kbd>M</kbd><span>Toggle audio scan chimes</span></div>
           <div class="modal-shortcut-row"><kbd>V</kbd><span>Flip Camera Horizontally (Mirror View)</span></div>
           <div class="modal-shortcut-row"><kbd>Z</kbd><span>Cycle Camera Digital / Hardware Zoom (1x / 1.5x / 2x)</span></div>
+          <div class="modal-shortcut-row"><kbd>T</kbd><span>Preview Live Result Announcement popup</span></div>
           <div class="modal-shortcut-row"><kbd>?</kbd> / <kbd>H</kbd><span>Open / close this guide</span></div>
         </div>
         <div class="modal-footer">
