@@ -118,16 +118,18 @@ class TvApp {
     this.initKeyboardControls()
     this.initEventListeners()
     
-    // 1. Fetch & Render Main TV Dashboard Points (Default View)
+    // 1. Initialize Published Result History FIRST so existing results are marked as seen
+    await this.initPublishedResultHistory()
+
+    // 2. Fetch & Render Main TV Dashboard Points (Default View)
     await this.fetchDashboardPoints()
     this.startDashboardSync()
 
-    // 2. Load standby stats in background & set up live result announcer
+    // 3. Load standby stats & set up Realtime WebSocket
     this.fetchStandbyData()
-    await this.initPublishedResultHistory()
     this.initRealtimeResultListener()
 
-    // 3. Check if initial hash is present in URL (e.g. #108)
+    // 4. Check if initial hash is present in URL (e.g. #108)
     const hash = window.location.hash.replace('#', '').trim()
     if (hash) {
       this.searchChestNumber(hash)
@@ -596,8 +598,10 @@ class TvApp {
           if (r.competition_id) this.seenPublishedCompIds.add(r.competition_id)
         })
       }
+      this.hasInitializedHistory = true
     } catch (e) {
       console.warn('Error fetching published competition history:', e)
+      this.hasInitializedHistory = true
     }
   }
 
@@ -671,7 +675,7 @@ class TvApp {
   }
 
   async checkForNewlyPublishedCompetitions() {
-    if (!this.supabase || this.isAnnouncementActive) return
+    if (!this.supabase || this.isAnnouncementActive || !this.hasInitializedHistory) return
 
     try {
       const { data: recentWins, error } = await this.supabase
@@ -707,8 +711,8 @@ class TvApp {
         const firstNewCompId = newCompIds[0]
         const compData = newCompMap[firstNewCompId]
 
-        // Mark as seen
-        this.seenPublishedCompIds.add(firstNewCompId)
+        // Mark all as seen immediately so background loop never re-fires
+        newCompIds.forEach(id => this.seenPublishedCompIds.add(id))
 
         // Show 20-second Breaking Result Announcement
         this.triggerBreakingResultAnnouncement(compData.compName, compData.compCategory, compData.results)
@@ -797,25 +801,22 @@ class TvApp {
     this.dom.resultAnnouncementOverlay.classList.add('active')
 
     // Audio chime
-    this.playScanSuccessChime()
-
-    // 20-Second Countdown
-    let timeLeft = 20
-    if (this.dom.announcementTimerText) {
-      this.dom.announcementTimerText.textContent = `Returning to Standings in ${timeLeft}s...`
-    }
+    this.playChime()
 
     if (this.announcementCountdownTimeout) {
       clearTimeout(this.announcementCountdownTimeout)
     }
 
     // Auto-close overlay after exactly 20 seconds
+    console.log('⏰ Starting 20s auto-dismiss timer for result announcement...')
     this.announcementCountdownTimeout = setTimeout(() => {
+      console.log('🚪 20s timeout reached -> Auto closing announcement modal')
       this.closeResultAnnouncement()
     }, 20000)
   }
 
   closeResultAnnouncement() {
+    console.log('🚪 closeResultAnnouncement executed')
     if (this.announcementCountdownTimeout) {
       clearTimeout(this.announcementCountdownTimeout)
       this.announcementCountdownTimeout = null
@@ -876,7 +877,10 @@ class TvApp {
       const compName = results[0]?.competitions?.name || 'Competition Result'
       const compCategory = results[0]?.competitions?.competition_type || 'Arts Festival'
 
-      // 3. Trigger 20-second Breaking Result Announcement with REAL data from database
+      // 3. Mark as seen to prevent auto-reopen loop from background sync
+      this.seenPublishedCompIds.add(compId)
+
+      // 4. Trigger 20-second Breaking Result Announcement with REAL data from database
       this.triggerBreakingResultAnnouncement(compName, compCategory, results)
 
     } catch (e) {
