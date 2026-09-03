@@ -951,37 +951,34 @@ html, body {
 }
 
 /* ==========================================================================
-   DASHBOARD MILESTONE POSTER SHOWCASE (Preloaded Seamless Crossfade)
+   FULL SCREEN MILESTONE POSTER SHOWCASE (No Text / Pure HD Broadcast)
    ========================================================================== */
-.dashboard-poster-showcase {
-  display: none;
-  width: 100%;
-  max-width: 1100px;
-  margin: 16px auto 0;
-  border-radius: 28px;
-  overflow: hidden;
-  background: rgba(14, 10, 13, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.85);
+.fullscreen-poster-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: #000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   opacity: 0;
-  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-  transform: scale(0.98);
+  pointer-events: none;
+  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: scale(0.99);
 }
 
-.dashboard-poster-showcase.active {
-  display: block;
+.fullscreen-poster-overlay.active {
   opacity: 1;
+  pointer-events: auto;
   transform: scale(1);
 }
 
-.dashboard-poster-img {
-  width: 100%;
-  height: auto;
-  max-height: 64vh;
+.fullscreen-poster-img {
+  width: 100vw;
+  height: 100vh;
   object-fit: contain;
   display: block;
-  margin: 0 auto;
-  border-radius: 26px;
+  margin: auto;
 }
 
 .pro-chip-name {

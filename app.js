@@ -163,15 +163,19 @@ class TvApp {
     this.isFetchingDashboard = true
 
     try {
-      // 1. Fetch App Settings, Teams, and Published Competition Results in Parallel
-      const [settingsRes, teamsRes, resultsRes, partsCountRes, compsCountRes] = await Promise.all([
+      // 1. Fetch App Settings, Teams, Published Results, and Gallery Media Posters in Parallel
+      const [settingsRes, teamsRes, resultsRes, partsCountRes, compsCountRes, galleryMediaRes] = await Promise.all([
         this.supabase.from('app_settings').select('key, value'),
         this.supabase.from('teams').select('id, name').order('name'),
         this.supabase.from('competition_results')
           .select('position, grade, placement_points, grade_points, competition_id, participants(team_id)')
           .eq('published', true),
         this.supabase.from('participants').select('id', { count: 'exact', head: true }),
-        this.supabase.from('competitions').select('id', { count: 'exact', head: true })
+        this.supabase.from('competitions').select('id', { count: 'exact', head: true }),
+        this.supabase.from('gallery_media')
+          .select('id, milestone, hd_url, thumb_url, created_at')
+          .not('milestone', 'is', null)
+          .order('created_at', { ascending: false })
       ])
 
       const settings = settingsRes.data || []
@@ -325,42 +329,60 @@ class TvApp {
         this.renderDashboardPodium(sortedTeams)
       }
 
-      // Check and Preload Milestone Poster in background (Zero chunking / Zero blank screen)
+      // Check and Preload Milestone Poster from gallery_media / storage (Zero chunking / Zero blank screen)
       let posterUrl = null
+      const galleryPosters = galleryMediaRes?.data || []
 
-      // Check divider object in announcer sequence
-      let compCount = 0
-      for (const item of rawSeq) {
-        if (typeof item !== 'string' && item?.isDivider) {
-          if (compCount === revealedMilestone || revealedMilestone === 0) {
-            posterUrl = item.poster_url || item.image_url || item.poster || item.url || item.image || null
-            if (posterUrl) break
-          }
+      // 1. Check direct milestone match from gallery_media (Primary Official Source)
+      if (revealedMilestone > 0) {
+        const exactMatch = galleryPosters.find(p => Number(p.milestone) === revealedMilestone)
+        if (exactMatch) {
+          posterUrl = exactMatch.hd_url || exactMatch.thumb_url
         } else {
-          compCount++
+          // Find closest previous milestone poster <= current milestone
+          const prevMatches = galleryPosters
+            .filter(p => Number(p.milestone) <= revealedMilestone)
+            .sort((a, b) => Number(b.milestone) - Number(a.milestone))
+          if (prevMatches.length > 0) {
+            posterUrl = prevMatches[0].hd_url || prevMatches[0].thumb_url
+          }
+        }
+      } else if (galleryPosters.length > 0) {
+        // When milestone is 0 (all), use latest uploaded milestone poster
+        posterUrl = galleryPosters[0].hd_url || galleryPosters[0].thumb_url
+      }
+
+      // 2. Fallback: Search divider objects in announcer sequence
+      if (!posterUrl) {
+        let compCount = 0
+        let lastDividerPoster = null
+        for (const item of rawSeq) {
+          if (!item) continue
+          const isDiv = typeof item !== 'string' && (item.isDivider || item.type === 'divider' || item.divider || item.is_divider)
+          if (isDiv) {
+            const divPoster = item.poster_url || item.posterUrl || item.poster || item.image_url || item.imageUrl || item.image || item.url || item.file_url || item.file || item.src || item.media_url || item.photo || item.photo_url || null
+            if (divPoster) {
+              lastDividerPoster = divPoster
+              if (compCount === revealedMilestone || revealedMilestone === 0) {
+                posterUrl = divPoster
+                break
+              }
+            }
+          } else {
+            compCount++
+          }
+        }
+        if (!posterUrl && lastDividerPoster) {
+          posterUrl = lastDividerPoster
         }
       }
 
-      // Check dedicated milestone poster settings
+      // 3. Fallback: Check dedicated milestone poster settings
       if (!posterUrl && revealedMilestone > 0) {
-        posterUrl = settings.find(s => s.key === `milestone_poster_${revealedMilestone}` || s.key === `poster_${revealedMilestone}`)?.value
+        posterUrl = settings.find(s => s.key === `milestone_poster_${revealedMilestone}` || s.key === `poster_${revealedMilestone}` || s.key === `milestone_${revealedMilestone}_poster`)?.value
       }
 
-      // Check general milestone posters JSON map
-      if (!posterUrl) {
-        const postersSetting = settings.find(s => s.key === 'milestone_posters' || s.key === 'status_posters')
-        if (postersSetting?.value) {
-          try {
-            const map = JSON.parse(postersSetting.value)
-            posterUrl = map[revealedMilestone] || map[`${revealedMilestone}`] || null
-          } catch (e) {}
-        }
-      }
-
-      // Check fallback status/leaderboard poster setting
-      if (!posterUrl) {
-        posterUrl = settings.find(s => s.key === 'status_poster' || s.key === 'leaderboard_poster')?.value || null
-      }
+      console.log('🖼️ Milestone Poster Extracted from DB:', { revealedMilestone, posterUrl })
 
       if (posterUrl) {
         this.handleMilestonePoster(posterUrl)
@@ -668,61 +690,67 @@ class TvApp {
       this.dom.dashboardPosterImg.src = readyUrl
     }
 
-    // Start auto-rotation between Electric Standings (28s) and Milestone Poster (14s)
+    // Start automated broadcast loop between Live Standings (20s) and Full-Screen Poster (20s)
     this.startDashboardPosterRotation()
   }
 
   clearMilestonePoster() {
     this.activeMilestonePosterUrl = null
     if (this.posterRotationTimer) {
-      clearInterval(this.posterRotationTimer)
+      clearTimeout(this.posterRotationTimer)
       this.posterRotationTimer = null
     }
     if (this.dom.dashboardPosterShowcase) {
       this.dom.dashboardPosterShowcase.classList.remove('active')
     }
-    if (this.dom.dashboardPodiumGrid) {
-      this.dom.dashboardPodiumGrid.style.display = 'grid'
-      this.dom.dashboardPodiumGrid.style.opacity = '1'
-    }
   }
 
   startDashboardPosterRotation() {
     if (this.posterRotationTimer) {
-      clearInterval(this.posterRotationTimer)
+      clearTimeout(this.posterRotationTimer)
+      this.posterRotationTimer = null
     }
 
-    let showingPoster = false
+    // Initial cycle: 18s on Standings (with 5.6s roll) -> then Fullscreen Poster
+    this.scheduleNextBroadcastPhase(false, 18000)
+  }
 
-    this.posterRotationTimer = setInterval(() => {
-      if (this.currentView !== 'dashboard' || !this.activeMilestonePosterUrl || this.isAnnouncementActive) return
+  scheduleNextBroadcastPhase(showingPoster, delayMs) {
+    if (this.posterRotationTimer) {
+      clearTimeout(this.posterRotationTimer)
+    }
 
-      showingPoster = !showingPoster
-      this.toggleDashboardPosterDisplay(showingPoster)
-    }, 28000)
+    this.posterRotationTimer = setTimeout(() => {
+      if (this.currentView !== 'dashboard' || !this.activeMilestonePosterUrl || this.isAnnouncementActive) {
+        // Reschedule check in 5s if announcement is active
+        this.scheduleNextBroadcastPhase(showingPoster, 5000)
+        return
+      }
+
+      const nextShowingPoster = !showingPoster
+      this.toggleDashboardPosterDisplay(nextShowingPoster)
+
+      // 20s on Full Screen Poster <-> 20s on Live Standings
+      const nextDuration = nextShowingPoster ? 20000 : 20000
+      this.scheduleNextBroadcastPhase(nextShowingPoster, nextDuration)
+    }, delayMs)
   }
 
   toggleDashboardPosterDisplay(showPoster) {
-    if (!this.dom.dashboardPosterShowcase || !this.dom.dashboardPodiumGrid) return
+    if (!this.dom.dashboardPosterShowcase) return
 
-    if (showPoster && this.activeMilestonePosterUrl) {
-      // Crossfade to Poster
-      this.dom.dashboardPodiumGrid.style.opacity = '0'
-      setTimeout(() => {
-        this.dom.dashboardPodiumGrid.style.display = 'none'
-        this.dom.dashboardPosterShowcase.classList.add('active')
-      }, 300)
+    if (showPoster && this.activeMilestonePosterUrl && !this.isAnnouncementActive) {
+      // Full Screen Clean Poster (No text overlay)
+      this.dom.dashboardPosterShowcase.classList.add('active')
     } else {
-      // Crossfade to Standings
+      // Return to Live Standings
       this.dom.dashboardPosterShowcase.classList.remove('active')
       setTimeout(() => {
-        this.dom.dashboardPodiumGrid.style.display = 'grid'
-        this.dom.dashboardPodiumGrid.style.opacity = '1'
-        if (this.latestTeamsData && this.latestTeamsData.length > 0) {
+        if (this.latestTeamsData && this.latestTeamsData.length > 0 && !this.isAnnouncementActive) {
           const currentMax = Math.max(...this.latestTeamsData.map(t => t.totalPoints), 1)
           this.playBroadcastPointsRoll(this.latestTeamsData, currentMax)
         }
-      }, 300)
+      }, 400)
     }
   }
 
@@ -778,6 +806,10 @@ class TvApp {
           console.log('⚡ Instant Realtime app_settings updated (Leaderboard Milestone / Colors):', payload)
           this.fetchDashboardPoints()
           this.fetchStandbyData()
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'gallery_media' }, () => {
+          console.log('⚡ Instant Realtime gallery_media milestone poster updated')
+          this.fetchDashboardPoints()
         })
         .subscribe((status, err) => {
           if (status === 'SUBSCRIBED') {
@@ -1503,6 +1535,11 @@ class TvApp {
         case 'P':
           if (!isSearchInputFocused) {
             e.preventDefault()
+            if (!this.activeMilestonePosterUrl) {
+              this.showToast('ℹ️ No milestone poster configured in database')
+              console.warn('⚠️ Key P pressed but no activeMilestonePosterUrl is found')
+              return
+            }
             const isShowingPoster = this.dom.dashboardPosterShowcase?.classList.contains('active')
             this.toggleDashboardPosterDisplay(!isShowingPoster)
           }
