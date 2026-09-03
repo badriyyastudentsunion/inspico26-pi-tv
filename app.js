@@ -295,19 +295,31 @@ class TvApp {
         return b.goldCount - a.goldCount
       })
 
+      // Check if data / milestone actually changed
+      const pointsSignature = sortedTeams.map(t => `${t.id}:${t.totalPoints}`).join('|') + `|m:${revealedMilestone}`
+      const hasChanged = this.lastPointsSignature !== pointsSignature
+
+      this.lastPointsSignature = pointsSignature
       this.dashboardPointsData = sortedTeams
       this.revealedMilestone = revealedMilestone
 
       // Update Header with exact Milestone text (e.g. STATUS AFTER 40 RESULTS)
       const headingEl = document.getElementById('dashboardMilestoneTitle') || document.querySelector('.broadcast-main-heading')
       if (headingEl) {
-        headingEl.textContent = revealedMilestone > 0 
-          ? `STATUS AFTER ${revealedMilestone} RESULTS` 
-          : `POINTS STANDINGS`
+        if (revealedMilestone > 0) {
+          headingEl.textContent = `STATUS AFTER ${revealedMilestone} RESULTS`
+        } else if (publishedCompIds.size > 0) {
+          headingEl.textContent = `STATUS AFTER ${publishedCompIds.size} RESULTS`
+        } else {
+          headingEl.textContent = `POINTS STANDINGS`
+        }
       }
 
-      // Render the 3 Team Podium Cards
-      this.renderDashboardPodium(sortedTeams)
+      // Render the 3 Team Podium Cards ONLY on initial load OR when points/milestones change
+      if (hasChanged || !this.hasInitialPodiumRendered) {
+        this.hasInitialPodiumRendered = true
+        this.renderDashboardPodium(sortedTeams)
+      }
 
       // Update Bottom Stats Tiles
       if (this.dom.dbTotalPoints) {
@@ -604,12 +616,18 @@ class TvApp {
           } else {
             this.checkForNewlyPublishedCompetitions()
           }
+          this.fetchDashboardPoints()
+          this.fetchStandbyData()
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'competitions' }, () => {
           this.checkForNewlyPublishedCompetitions()
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, () => {
           this.fetchDashboardPoints()
+          this.fetchStandbyData()
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload) => {
+          console.log('⚡ Instant Realtime app_settings updated (Leaderboard Milestone / Colors):', payload)
+          this.fetchDashboardPoints()
+          this.fetchStandbyData()
         })
         .subscribe((status, err) => {
           if (status === 'SUBSCRIBED') {
@@ -827,13 +845,13 @@ class TvApp {
     if (this.dashboardSyncInterval) {
       clearInterval(this.dashboardSyncInterval)
     }
-    // Auto sync every 12 seconds
+    // Ultra-fast 5-second polling backup alongside 0ms Realtime WebSockets
     this.dashboardSyncInterval = setInterval(() => {
       if (this.currentView === 'dashboard') {
         this.fetchDashboardPoints()
       }
       this.checkForNewlyPublishedCompetitions()
-    }, 12000)
+    }, 5000)
   }
 
   async fetchStandbyData() {
