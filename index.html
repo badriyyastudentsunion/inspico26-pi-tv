@@ -14,7 +14,6 @@
 
   <!-- Local Vendor Scripts with CDN Fallbacks -->
   <script src="vendor/supabase.js"></script>
-  <script src="vendor/html5-qrcode.min.js"></script>
 </head>
 <body class="tv-body">
   <!-- Ambient Inspico Glow Elements -->
@@ -147,266 +146,14 @@
               <span>Loading Inspico Live Standings...</span>
             </div>
           </div>
-        </div>
-      </section>
 
-      <!-- ========================================================== -->
-      <!-- VIEW 1: STANDBY / WELCOME SCANNER SCREEN -->
-      <!-- ========================================================== -->
-      <section class="view-standby" id="viewStandby">
-        
-        <!-- Left Standby: Webcam Target Reticle -->
-        <div class="standby-scanner-panel">
-          <div class="scanner-header-row">
-            <div class="scanner-title-group">
-              <span class="live-pill">LIVE SCANNER</span>
-              <h2 class="scanner-title">Scan Chest Card QR Code</h2>
-            </div>
-            <div class="camera-select-wrap" style="display: flex; align-items: center; gap: 8px;">
-              <div class="zoom-controls-group" style="display: flex; align-items: center; gap: 2px; background: rgba(255,255,255,0.06); padding: 3px 6px; border-radius: 8px; border: 1px solid var(--border-subtle);">
-                <span style="font-size: 10px; font-weight: 800; color: rgba(255,255,255,0.5); padding: 0 4px;">ZOOM</span>
-                <button class="zoom-btn active" id="btnZoom1" data-zoom="1" style="background: var(--accent); border: none; color: #fff; font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 4px; cursor: pointer;">1x</button>
-                <button class="zoom-btn" id="btnZoom15" data-zoom="1.5" style="background: none; border: none; color: rgba(255,255,255,0.6); font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 4px; cursor: pointer;">1.5x</button>
-                <button class="zoom-btn" id="btnZoom2" data-zoom="2" style="background: none; border: none; color: rgba(255,255,255,0.6); font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 4px; cursor: pointer;">2x</button>
-              </div>
-              <select id="cameraSelect" class="camera-select-dropdown" title="Select Webcam Device" style="display: none;">
-                <option value="">Default Camera</option>
-              </select>
-              <button class="shortcut-btn" id="btnFlipCam" title="Flip Camera Horizontally (V)" style="padding: 6px 10px;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;"><path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3m8-18h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3m-4-19v20"/></svg>
-                <span>Flip [V]</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Video Viewfinder Frame -->
-          <div class="scanner-viewport-box" id="scannerBox">
-            <div id="qrReader" class="qr-video-mount"></div>
-
-            <!-- Target Reticle Overlay -->
-            <div class="scanner-reticle-overlay" id="scannerReticle">
-              <div class="corner-bracket top-left"></div>
-              <div class="corner-bracket top-right"></div>
-              <div class="corner-bracket bottom-left"></div>
-              <div class="corner-bracket bottom-right"></div>
-              
-              <div class="scan-laser-line"></div>
-              
-              <div class="reticle-hint">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="reticle-qr-icon">
-                  <rect x="3" y="3" width="7" height="7"></rect>
-                  <rect x="14" y="3" width="7" height="7"></rect>
-                  <rect x="14" y="14" width="7" height="7"></rect>
-                  <rect x="3" y="14" width="7" height="7"></rect>
-                </svg>
-                <span>Hold QR Code Steady in Camera</span>
-              </div>
-            </div>
-
-            <!-- Scanner Notification Feedback Overlay -->
-            <div class="scanner-feedback-flash" id="scannerFeedbackFlash">
-              <div class="feedback-badge">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-                <span id="feedbackText">QR CODE DETECTED!</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Manual Fast-Access Strip -->
-          <div class="standby-input-strip">
-            <span class="strip-label">DIRECT KEYBOARD SEARCH:</span>
-            <div class="sample-chips">
-              <span class="sample-tip">Press any number <kbd>0-9</kbd> on keyboard to search directly</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right Standby: Festival Live Activity Stream & Standby Board -->
-        <div class="standby-info-panel">
-          
-          <!-- Top Stats Ticker matching V1 palette -->
-          <div class="standby-stats-grid">
-            <div class="stat-card">
-              <span class="stat-label">PARTICIPANTS</span>
-              <span class="stat-value" id="statParticipants">--</span>
-            </div>
-            <div class="stat-card">
-              <span class="stat-label">COMPETITIONS</span>
-              <span class="stat-value" id="statCompetitions">--</span>
-            </div>
-            <div class="stat-card highlight">
-              <span class="stat-label">PUBLISHED RESULTS</span>
-              <span class="stat-value" id="statPublished">--</span>
-            </div>
-          </div>
-
-          <!-- Recent Published Announcements & Live Results Feed -->
-          <div class="recent-results-board">
-            <div class="board-header">
-              <div class="board-title-group">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="board-icon">
-                  <circle cx="12" cy="8" r="7"></circle>
-                  <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
-                </svg>
-                <h3>Latest Published Results</h3>
-              </div>
-              <span class="live-badge">LIVE ANNOUNCEMENTS</span>
-            </div>
-
-            <div class="recent-results-list" id="recentResultsList">
-              <div class="loading-state">
-                <div class="spinner"></div>
-                <span>Fetching festival data...</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- TV Operator Keyboard Help Box -->
-          <div class="keyboard-legend-card">
-            <div class="legend-header">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legend-icon">
-                <rect x="2" y="4" width="20" height="16" rx="2" ry="2"/>
-                <line x1="6" y1="8" x2="6" y2="8"/><line x1="10" y1="8" x2="10" y2="8"/><line x1="14" y1="8" x2="14" y2="8"/><line x1="18" y1="8" x2="18" y2="8"/>
-                <line x1="6" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="18" y2="12"/><line x1="10" y1="16" x2="14" y2="16"/>
-              </svg>
-              <span>KEYBOARD & TV REMOTE SHORTCUTS</span>
-            </div>
-            <div class="legend-keys">
-              <div class="key-item"><kbd>↑</kbd><kbd>↓</kbd><span>Scroll Events</span></div>
-              <div class="key-item"><kbd>Space</kbd><span>Camera Pause</span></div>
-              <div class="key-item"><kbd>Esc</kbd><span>Standby</span></div>
-              <div class="key-item"><kbd>F</kbd><span>Fullscreen</span></div>
-              <div class="key-item"><kbd>0-9</kbd><span>Type Chest No</span></div>
-            </div>
+          <!-- Optional Preloaded Milestone Poster Showcase -->
+          <div class="dashboard-poster-showcase" id="dashboardPosterShowcase">
+            <img id="dashboardPosterImg" class="dashboard-poster-img" alt="Milestone Poster" />
           </div>
 
         </div>
       </section>
-
-      <!-- ========================================================== -->
-      <!-- VIEW 2: PARTICIPANT PROFILE, COMPETITIONS & RESULTS SCREEN -->
-      <!-- ========================================================== -->
-      <section class="view-result" id="viewResult">
-        
-        <!-- Result Top Toolbar (Back Button, Countdown, Mini-Cam PIP) -->
-        <div class="result-toolbar">
-          <button class="back-standby-btn" id="btnBackStandby">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-            <span>BACK TO SCANNER <kbd>[Esc]</kbd></span>
-          </button>
-
-          <!-- Auto Return Countdown Bar -->
-          <div class="standby-countdown-wrap" id="countdownWrap">
-            <div class="countdown-bar-fill" id="countdownBar"></div>
-            <span class="countdown-text" id="countdownText">Auto-return in 45s</span>
-            <button class="countdown-pause-btn" id="btnPauseCountdown" title="Pause auto-return">PAUSE</button>
-          </div>
-
-          <!-- Mini Camera PiP Preview -->
-          <div class="mini-cam-pip" id="miniCamPip" title="Webcam is active and ready for the next QR scan">
-            <div class="pip-dot"></div>
-            <span>CAMERA READY FOR NEXT SCAN</span>
-          </div>
-        </div>
-
-        <!-- Result Layout: 2 Columns (Hero Card + Competitions/Results) -->
-        <div class="result-grid-container">
-
-          <!-- Left Column: Participant Actual Scaled Chest Card + Details -->
-          <aside class="participant-sidebar">
-            
-            <!-- EXACT V1 SCALED CHEST CARD BOX -->
-            <div class="lp-profile-card-scale-box">
-              <div class="lp-chest-canvas-v1">
-                <div class="lp-chest-inner-group">
-                  
-                  <!-- Left: QR Code & Chest Number -->
-                  <div class="lp-chest-left-wrap">
-                    <div class="lp-chest-qr-box">
-                      <img id="chestCardQrImg" src="" alt="QR Code" class="lp-chest-qr-img" />
-                    </div>
-                    <p class="lp-chest-num-text" id="resChestNo">---</p>
-                  </div>
-
-                  <!-- Right: Name, Team, Zone (Positioned precisely next to pre-printed labels) -->
-                  <div class="lp-chest-right-wrap">
-                    <span class="lp-chest-field-val" id="resName">---</span>
-                    <span class="lp-chest-field-val" id="resTeam">---</span>
-                    <span class="lp-chest-field-val" id="resCategory">---</span>
-                  </div>
-
-                </div>
-              </div>
-            </div>
-
-            <!-- Performance Overview Stats Box -->
-            <div class="participant-summary-stats">
-              <div class="sum-stat-box">
-                <span class="sum-stat-number" id="resTotalEvents">0</span>
-                <span class="sum-stat-label">REGISTERED</span>
-              </div>
-              <div class="sum-stat-box highlight">
-                <span class="sum-stat-number" id="resTotalPoints">0</span>
-                <span class="sum-stat-label">TOTAL POINTS</span>
-              </div>
-              <div class="sum-stat-box gold">
-                <span class="sum-stat-number" id="resTopPlaces">0</span>
-                <span class="sum-stat-label">PODIUMS</span>
-              </div>
-            </div>
-
-            <!-- Quick Next/Prev History -->
-            <div class="scan-history-strip">
-              <span class="history-label">RECENT SCANS:</span>
-              <div class="history-pills" id="recentHistoryPills">
-                <!-- History buttons inserted here -->
-              </div>
-            </div>
-          </aside>
-
-          <!-- Right Column: Competitions & Results Detailed Feed -->
-          <section class="competitions-feed-panel">
-            
-            <div class="feed-header-row">
-              <div class="feed-tabs">
-                <button class="feed-tab active" data-filter="all" id="tabFilterAll">
-                  All Events (<span id="countAllEvents">0</span>)
-                </button>
-                <button class="feed-tab" data-filter="results" id="tabFilterResults">
-                  Published Results (<span id="countPublishedEvents">0</span>)
-                </button>
-                <button class="feed-tab" data-filter="scheduled" id="tabFilterScheduled">
-                  Upcoming / In Progress (<span id="countScheduledEvents">0</span>)
-                </button>
-              </div>
-
-              <div class="nav-hint-pill">
-                <span>Use <kbd>↑</kbd> <kbd>↓</kbd> Arrow Keys to Navigate Cards</span>
-              </div>
-            </div>
-
-            <!-- Scrollable Competitions List matching V1 .lp-comp-card styling -->
-            <div class="competitions-scroll-container" id="competitionsScrollContainer" tabindex="0">
-              <div class="competitions-list-cards" id="competitionsListCards">
-                <!-- Dynamically populated cards -->
-              </div>
-            </div>
-
-          </section>
-
-        </div>
-      </section>
-
-      <!-- ========================================================== -->
-      <!-- VIEW 3: LOADING OVERLAY -->
-      <!-- ========================================================== -->
-      <div class="tv-loading-overlay" id="loadingOverlay">
-        <div class="loading-modal-card">
-          <div class="loading-spinner-ring"></div>
-          <h3 class="loading-title">FETCHING PARTICIPANT DATA</h3>
-          <p class="loading-subtitle" id="loadingSubtitle">Connecting to festival database...</p>
-        </div>
-      </div>
 
     </main>
 
@@ -419,15 +166,19 @@
         
         <!-- Header Banner -->
         <div class="announcement-header">
-          <div class="announcement-badge-pill">
+          <div class="announcement-live-indicator">
             <span class="announcement-live-dot"></span>
-            <span id="announcementResultNumberText">RESULT #</span>
+            <span class="announcement-live-text">LIVE</span>
           </div>
           <button class="announcement-close-btn" id="btnCloseAnnouncement" title="Dismiss (Esc)">&times;</button>
         </div>
 
-        <!-- Competition Info -->
+        <!-- Competition Info with Huge Result Number -->
         <div class="announcement-comp-section">
+          <div class="announcement-result-block">
+            <span class="ann-result-lbl">RESULT</span>
+            <span class="ann-result-num" id="announcementResultNumberText">--</span>
+          </div>
           <div class="announcement-category-tag" id="announcementCompCategory">ARTS GALLERY • RESULT PUBLISHED</div>
           <h2 class="announcement-comp-title" id="announcementCompTitle">COMPETITION NAME</h2>
         </div>

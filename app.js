@@ -99,12 +99,19 @@ class TvApp {
       announcementPodiumGrid: document.getElementById('announcementPodiumGrid'),
       announcementTimerText: document.getElementById('announcementTimerText'),
       announcementProgressBar: document.getElementById('announcementProgressBar'),
-      btnCloseAnnouncement: document.getElementById('btnCloseAnnouncement')
+      btnCloseAnnouncement: document.getElementById('btnCloseAnnouncement'),
+
+      // Milestone Poster Showcase
+      dashboardPosterShowcase: document.getElementById('dashboardPosterShowcase'),
+      dashboardPosterImg: document.getElementById('dashboardPosterImg')
     }
 
     this.seenPublishedCompIds = new Set()
     this.isAnnouncementActive = false
     this.announcementCountdownInterval = null
+    this.preloadedPosterCache = new Map()
+    this.activeMilestonePosterUrl = null
+    this.posterRotationTimer = null
 
     this.init()
   }
@@ -125,18 +132,11 @@ class TvApp {
     await this.fetchDashboardPoints()
     this.startDashboardSync()
 
-    // 3. Load standby stats & set up Realtime WebSocket
-    this.fetchStandbyData()
+    // 3. Set up Instant Realtime WebSocket (0ms instant updates)
     this.initRealtimeResultListener()
 
-    // 4. Check if initial hash is present in URL (e.g. #108)
-    const hash = window.location.hash.replace('#', '').trim()
-    if (hash) {
-      this.searchChestNumber(hash)
-    } else {
-      // Switch view without re-fetching immediately (avoids double animation on first load)
-      this.switchView('dashboard', false)
-    }
+    // 4. Default to Main TV Live Standings Broadcast View
+    this.switchView('dashboard', false)
   }
 
   // --------------------------------------------------------------------------
@@ -163,9 +163,9 @@ class TvApp {
     this.isFetchingDashboard = true
 
     try {
-      // 1. Fetch App Settings, Teams, and Published Competition Results in Parallel (matching V1)
+      // 1. Fetch App Settings, Teams, and Published Competition Results in Parallel
       const [settingsRes, teamsRes, resultsRes, partsCountRes, compsCountRes] = await Promise.all([
-        this.supabase.from('app_settings').select('key, value').in('key', ['leaderboard_revealed_milestone', 'announcer_sequence', 'team_colors']),
+        this.supabase.from('app_settings').select('key, value'),
         this.supabase.from('teams').select('id, name').order('name'),
         this.supabase.from('competition_results')
           .select('position, grade, placement_points, grade_points, competition_id, participants(team_id)')
@@ -323,6 +323,49 @@ class TvApp {
       if (hasChanged || !this.hasInitialPodiumRendered) {
         this.hasInitialPodiumRendered = true
         this.renderDashboardPodium(sortedTeams)
+      }
+
+      // Check and Preload Milestone Poster in background (Zero chunking / Zero blank screen)
+      let posterUrl = null
+
+      // Check divider object in announcer sequence
+      let compCount = 0
+      for (const item of rawSeq) {
+        if (typeof item !== 'string' && item?.isDivider) {
+          if (compCount === revealedMilestone || revealedMilestone === 0) {
+            posterUrl = item.poster_url || item.image_url || item.poster || item.url || item.image || null
+            if (posterUrl) break
+          }
+        } else {
+          compCount++
+        }
+      }
+
+      // Check dedicated milestone poster settings
+      if (!posterUrl && revealedMilestone > 0) {
+        posterUrl = settings.find(s => s.key === `milestone_poster_${revealedMilestone}` || s.key === `poster_${revealedMilestone}`)?.value
+      }
+
+      // Check general milestone posters JSON map
+      if (!posterUrl) {
+        const postersSetting = settings.find(s => s.key === 'milestone_posters' || s.key === 'status_posters')
+        if (postersSetting?.value) {
+          try {
+            const map = JSON.parse(postersSetting.value)
+            posterUrl = map[revealedMilestone] || map[`${revealedMilestone}`] || null
+          } catch (e) {}
+        }
+      }
+
+      // Check fallback status/leaderboard poster setting
+      if (!posterUrl) {
+        posterUrl = settings.find(s => s.key === 'status_poster' || s.key === 'leaderboard_poster')?.value || null
+      }
+
+      if (posterUrl) {
+        this.handleMilestonePoster(posterUrl)
+      } else {
+        this.clearMilestonePoster()
       }
 
       // Update Bottom Stats Tiles
@@ -583,6 +626,107 @@ class TvApp {
   }
 
   // --------------------------------------------------------------------------
+  // MILESTONE POSTER PRELOAD & SEAMLESS ROTATION ENGINE
+  // --------------------------------------------------------------------------
+  async preloadImage(url) {
+    if (!url) return null
+    if (this.preloadedPosterCache.has(url)) return url
+
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = async () => {
+        if ('decode' in img) {
+          try {
+            await img.decode()
+          } catch (e) {}
+        }
+        this.preloadedPosterCache.set(url, true)
+        console.log('✅ Milestone Poster decoded into RAM cache:', url)
+        resolve(url)
+      }
+      img.onerror = () => {
+        console.warn('Could not load milestone poster image:', url)
+        resolve(null)
+      }
+      img.src = url
+    })
+  }
+
+  async handleMilestonePoster(rawUrl) {
+    if (this.activeMilestonePosterUrl === rawUrl) return
+
+    // Preload fully in memory first before touching screen (Zero chunking / Zero blank)
+    const readyUrl = await this.preloadImage(rawUrl)
+    if (!readyUrl) {
+      this.clearMilestonePoster()
+      return
+    }
+
+    this.activeMilestonePosterUrl = readyUrl
+    if (this.dom.dashboardPosterImg) {
+      this.dom.dashboardPosterImg.src = readyUrl
+    }
+
+    // Start auto-rotation between Electric Standings (28s) and Milestone Poster (14s)
+    this.startDashboardPosterRotation()
+  }
+
+  clearMilestonePoster() {
+    this.activeMilestonePosterUrl = null
+    if (this.posterRotationTimer) {
+      clearInterval(this.posterRotationTimer)
+      this.posterRotationTimer = null
+    }
+    if (this.dom.dashboardPosterShowcase) {
+      this.dom.dashboardPosterShowcase.classList.remove('active')
+    }
+    if (this.dom.dashboardPodiumGrid) {
+      this.dom.dashboardPodiumGrid.style.display = 'grid'
+      this.dom.dashboardPodiumGrid.style.opacity = '1'
+    }
+  }
+
+  startDashboardPosterRotation() {
+    if (this.posterRotationTimer) {
+      clearInterval(this.posterRotationTimer)
+    }
+
+    let showingPoster = false
+
+    this.posterRotationTimer = setInterval(() => {
+      if (this.currentView !== 'dashboard' || !this.activeMilestonePosterUrl || this.isAnnouncementActive) return
+
+      showingPoster = !showingPoster
+      this.toggleDashboardPosterDisplay(showingPoster)
+    }, 28000)
+  }
+
+  toggleDashboardPosterDisplay(showPoster) {
+    if (!this.dom.dashboardPosterShowcase || !this.dom.dashboardPodiumGrid) return
+
+    if (showPoster && this.activeMilestonePosterUrl) {
+      // Crossfade to Poster
+      this.dom.dashboardPodiumGrid.style.opacity = '0'
+      setTimeout(() => {
+        this.dom.dashboardPodiumGrid.style.display = 'none'
+        this.dom.dashboardPosterShowcase.classList.add('active')
+      }, 300)
+    } else {
+      // Crossfade to Standings
+      this.dom.dashboardPosterShowcase.classList.remove('active')
+      setTimeout(() => {
+        this.dom.dashboardPodiumGrid.style.display = 'grid'
+        this.dom.dashboardPodiumGrid.style.opacity = '1'
+        if (this.latestTeamsData && this.latestTeamsData.length > 0) {
+          const currentMax = Math.max(...this.latestTeamsData.map(t => t.totalPoints), 1)
+          this.playBroadcastPointsRoll(this.latestTeamsData, currentMax)
+        }
+      }, 300)
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // BREAKING LIVE RESULT ANNOUNCEMENT ENGINE (20s Auto-Display)
   // --------------------------------------------------------------------------
   async initPublishedResultHistory() {
@@ -649,7 +793,7 @@ class TvApp {
   }
 
   async fetchAndAnnounceCompetition(compId) {
-    if (!compId || this.seenPublishedCompIds.has(compId) || this.isAnnouncementActive) return
+    if (!compId || this.seenPublishedCompIds.has(compId)) return
     this.seenPublishedCompIds.add(compId)
 
     try {
@@ -668,14 +812,14 @@ class TvApp {
       const compName = results[0]?.competitions?.name || 'Competition Result'
       const compCategory = results[0]?.competitions?.competition_type || 'Arts Festival'
 
-      this.triggerBreakingResultAnnouncement(compName, compCategory, results)
+      this.enqueueResultAnnouncement(compName, compCategory, results)
     } catch (e) {
       console.warn('Error fetching instant competition announcement:', e)
     }
   }
 
   async checkForNewlyPublishedCompetitions() {
-    if (!this.supabase || this.isAnnouncementActive || !this.hasInitializedHistory) return
+    if (!this.supabase || !this.hasInitializedHistory) return
 
     try {
       const { data: recentWins, error } = await this.supabase
@@ -708,18 +852,26 @@ class TvApp {
 
       const newCompIds = Object.keys(newCompMap)
       if (newCompIds.length > 0) {
-        const firstNewCompId = newCompIds[0]
-        const compData = newCompMap[firstNewCompId]
-
-        // Mark all as seen immediately so background loop never re-fires
-        newCompIds.forEach(id => this.seenPublishedCompIds.add(id))
-
-        // Show 20-second Breaking Result Announcement
-        this.triggerBreakingResultAnnouncement(compData.compName, compData.compCategory, compData.results)
+        newCompIds.forEach(id => {
+          this.seenPublishedCompIds.add(id)
+          const compData = newCompMap[id]
+          this.enqueueResultAnnouncement(compData.compName, compData.compCategory, compData.results)
+        })
       }
     } catch (e) {
       console.warn('Error checking newly published competitions:', e)
     }
+  }
+
+  enqueueResultAnnouncement(compName, compCategory, results, resultNumber = null) {
+    const item = { compName, compCategory, results, resultNumber }
+    if (this.isAnnouncementActive) {
+      console.log('📥 Announcement currently active -> Enqueued result:', compName)
+      if (!this.announcementQueue) this.announcementQueue = []
+      this.announcementQueue.push(item)
+      return
+    }
+    this.triggerBreakingResultAnnouncement(item.compName, item.compCategory, item.results, item.resultNumber)
   }
 
   triggerBreakingResultAnnouncement(compName, compCategory, results, resultNumber = null) {
@@ -746,7 +898,7 @@ class TvApp {
 
     const numEl = document.getElementById('announcementResultNumberText')
     if (numEl) {
-      numEl.textContent = resultNumber ? `RESULT #${resultNumber}` : 'RESULT PUBLISHED'
+      numEl.textContent = resultNumber ? `${resultNumber}` : '--'
     }
 
     // Sort winners: 1st, 2nd, 3rd
@@ -768,7 +920,6 @@ class TvApp {
         else if (pos === 3) posLabel = '🥉 3RD PLACE'
 
         const student = r.participants?.name || 'Participant'
-        const chest = r.participants?.chess_number || '-'
         const teamName = r.participants?.teams?.name || 'Team'
         const teamColor = defaultColors[teamName] || '#B8193C'
         const grade = r.grade ? `GRADE ${r.grade}` : ''
@@ -800,6 +951,13 @@ class TvApp {
     // Show Overlay
     this.dom.resultAnnouncementOverlay.classList.add('active')
 
+    // Restart Progress Bar CSS animation cleanly for fresh 20s
+    if (this.dom.announcementProgressBar) {
+      this.dom.announcementProgressBar.style.animation = 'none'
+      void this.dom.announcementProgressBar.offsetWidth // force reflow
+      this.dom.announcementProgressBar.style.animation = 'announcementTimerBar 20s linear forwards'
+    }
+
     // Audio chime
     this.playChime()
 
@@ -810,7 +968,7 @@ class TvApp {
     // Auto-close overlay after exactly 20 seconds
     console.log('⏰ Starting 20s auto-dismiss timer for result announcement...')
     this.announcementCountdownTimeout = setTimeout(() => {
-      console.log('🚪 20s timeout reached -> Auto closing announcement modal')
+      console.log('🚪 20s timeout reached -> Next in queue or close')
       this.closeResultAnnouncement()
     }, 20000)
   }
@@ -820,6 +978,14 @@ class TvApp {
     if (this.announcementCountdownTimeout) {
       clearTimeout(this.announcementCountdownTimeout)
       this.announcementCountdownTimeout = null
+    }
+
+    // Check if there are more announcements waiting in the FIFO queue!
+    if (this.announcementQueue && this.announcementQueue.length > 0) {
+      const nextItem = this.announcementQueue.shift()
+      console.log('⏩ Playing next queued result announcement with full 20s:', nextItem.compName)
+      this.triggerBreakingResultAnnouncement(nextItem.compName, nextItem.compCategory, nextItem.results, nextItem.resultNumber)
+      return
     }
 
     if (this.dom.resultAnnouncementOverlay) {
@@ -1257,222 +1423,7 @@ class TvApp {
     `).join('')
   }
 
-  // --------------------------------------------------------------------------
-  // WEBCAM & QR SCANNER ENGINE
-  // --------------------------------------------------------------------------
-  initCameraScanner() {
-    if (typeof Html5QrcodeScanner === 'undefined') {
-      setTimeout(() => this.initCameraScanner(), 300)
-      return
-    }
 
-    try {
-      if (this.scannerInstance) {
-        try { this.scannerInstance.clear() } catch (e) {}
-      }
-
-      this.currentZoom = 1
-
-      // Matching Art Gallery V1 LandingPage.jsx with safe, responsive qrbox
-      this.scannerInstance = new Html5QrcodeScanner(
-        'qrReader',
-        {
-          fps: 15,
-          qrbox: { width: 280, height: 280 },
-          rememberLastUsedCamera: true,
-          supportedScanTypes: [0],
-          showTorchButtonIfSupported: true,
-          videoConstraints: {
-            facingMode: 'environment',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
-        },
-        false
-      )
-
-      this.scannerInstance.render(
-        (decodedText) => this.handleQrCodeScanned(decodedText),
-        (error) => {
-          // ignore frame seeking errors
-        }
-      )
-
-      this.isCameraRunning = true
-      this.updateCameraStatus(true, 'WEBCAM ACTIVE / SCANNING')
-
-      // Start Multi-Scale background scanner for low-clarity webcams
-      this.startSuperResolutionScanner()
-
-    } catch (err) {
-      console.error('Html5QrcodeScanner init error:', err)
-      this.updateCameraStatus(false, 'CLICK SCANNER TO START')
-    }
-  }
-
-  // --------------------------------------------------------------------------
-  // MULTI-SCALE DUAL SCANNER (LOW-QUALITY WEBCAM OPTIMIZATION)
-  // --------------------------------------------------------------------------
-  startSuperResolutionScanner() {
-    this.stopSuperResolutionScanner()
-
-    if (!('BarcodeDetector' in window)) return
-
-    try {
-      const barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] })
-      const canvas = document.createElement('canvas')
-      canvas.width = 480
-      canvas.height = 480
-      const ctx = canvas.getContext('2d', { willReadFrequently: true })
-
-      let isProcessing = false
-      let pass = 0
-
-      // Alternates: Pass 0 (Full video frame) -> Pass 1 (Center 1.8x Zoom for small/distant codes)
-      this.superScanInterval = setInterval(async () => {
-        if (isProcessing) return
-        const video = document.querySelector('#qrReader video')
-        if (!video || video.readyState < 2 || video.paused || !video.videoWidth) return
-
-        isProcessing = true
-        try {
-          const vw = video.videoWidth
-          const vh = video.videoHeight
-
-          if (pass === 0) {
-            pass = 1
-            // Full video frame pass
-            const barcodes = await barcodeDetector.detect(video)
-            if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
-              this.handleQrCodeScanned(barcodes[0].rawValue)
-              isProcessing = false
-              return
-            }
-          } else {
-            pass = 0
-            // Center 1.8x Zoom pass (magnifies small QR codes from low quality cameras)
-            const cropW = vw * 0.55
-            const cropH = vh * 0.55
-            const cropX = (vw - cropW) / 2
-            const cropY = (vh - cropH) / 2
-
-            ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height)
-            const barcodes = await barcodeDetector.detect(canvas)
-            if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
-              this.handleQrCodeScanned(barcodes[0].rawValue)
-            }
-          }
-        } catch (e) {
-          // ignore dropped frames
-        } finally {
-          isProcessing = false
-        }
-      }, 100) // 10 FPS smooth scan without lag
-    } catch (e) {
-      console.warn('Super-resolution scanner setup error:', e)
-    }
-  }
-
-  stopSuperResolutionScanner() {
-    if (this.superScanInterval) {
-      clearInterval(this.superScanInterval)
-      this.superScanInterval = null
-    }
-  }
-
-  setZoom(level) {
-    this.currentZoom = level
-    const qrReader = document.getElementById('qrReader')
-    if (qrReader) {
-      qrReader.classList.remove('zoom-15x', 'zoom-20x')
-      if (level === 1.5) qrReader.classList.add('zoom-15x')
-      if (level === 2) qrReader.classList.add('zoom-20x')
-    }
-
-    try {
-      const video = document.querySelector('#qrReader video')
-      const track = video?.srcObject?.getVideoTracks()[0]
-      if (track) {
-        const caps = track.getCapabilities ? track.getCapabilities() : {}
-        if (caps.zoom) {
-          const target = Math.min(caps.zoom.max, Math.max(caps.zoom.min, level))
-          track.applyConstraints({ advanced: [{ zoom: target }] }).catch(() => {})
-        }
-      }
-    } catch (e) {}
-
-    const zoomBtns = [document.getElementById('btnZoom1'), document.getElementById('btnZoom15'), document.getElementById('btnZoom2')]
-    zoomBtns.forEach(btn => {
-      if (!btn) return
-      const isMatch = parseFloat(btn.dataset.zoom) === level
-      btn.style.background = isMatch ? 'var(--accent)' : 'none'
-      btn.style.color = isMatch ? '#fff' : 'rgba(255,255,255,0.6)'
-    })
-
-    this.showToast(`Camera Zoom: ${level}x`)
-  }
-
-  cycleZoom() {
-    const next = this.currentZoom === 1 ? 1.5 : (this.currentZoom === 1.5 ? 2 : 1)
-    this.setZoom(next)
-  }
-
-  toggleCameraPause() {
-    const btn = document.querySelector('#qrReader button')
-    if (btn) {
-      btn.click()
-    }
-  }
-
-  handleQrCodeScanned(qrText) {
-    if (!qrText) return
-
-    // Debounce to prevent multiple scans within 2.5s for same code
-    const now = Date.now()
-    if (this.lastScannedText === qrText && now - (this.lastScannedTime || 0) < 2500) {
-      return
-    }
-    this.lastScannedText = qrText
-    this.lastScannedTime = now
-
-    const hashMatch = qrText.match(/#([a-zA-Z0-9_-]+)/)
-    let chestNumber = hashMatch ? hashMatch[1] : qrText.trim()
-
-    if (chestNumber.includes('http')) {
-      try {
-        const url = new URL(chestNumber)
-        if (url.searchParams.get('chest')) {
-          chestNumber = url.searchParams.get('chest')
-        }
-      } catch (e) {}
-    }
-
-    this.triggerScanFlash(`CHEST #${chestNumber} SCANNED!`)
-    this.playChime()
-    this.searchChestNumber(chestNumber)
-  }
-
-  triggerScanFlash(text) {
-    if (!this.dom.scannerFeedbackFlash) return
-    if (this.dom.feedbackText) this.dom.feedbackText.textContent = text
-    this.dom.scannerFeedbackFlash.classList.add('active')
-    setTimeout(() => {
-      this.dom.scannerFeedbackFlash.classList.remove('active')
-    }, 900)
-  }
-
-  updateCameraStatus(active, text) {
-    if (this.dom.cameraStatusText) this.dom.cameraStatusText.textContent = text
-    if (this.dom.cameraStatusPill) {
-      if (active) {
-        this.dom.cameraStatusPill.style.borderColor = 'rgba(184, 25, 60, 0.4)'
-        this.dom.cameraStatusPill.style.color = '#fff'
-      } else {
-        this.dom.cameraStatusPill.style.borderColor = 'rgba(239, 68, 68, 0.4)'
-        this.dom.cameraStatusPill.style.color = '#ef4444'
-      }
-    }
-  }
 
   // --------------------------------------------------------------------------
   // KEYBOARD NAVIGATION & REMOTE CONTROL
@@ -1548,24 +1499,21 @@ class TvApp {
           }
           break
 
-        case 'd':
-        case 'D':
-        case 'l':
-        case 'L':
+        case 'p':
+        case 'P':
           if (!isSearchInputFocused) {
             e.preventDefault()
-            if (this.currentView === 'dashboard') {
-              this.switchView('standby')
-            } else {
-              this.switchView('dashboard')
-            }
+            const isShowingPoster = this.dom.dashboardPosterShowcase?.classList.contains('active')
+            this.toggleDashboardPosterDisplay(!isShowingPoster)
           }
           break
 
-        case ' ': // Spacebar
+        case 'r':
+        case 'R':
           if (!isSearchInputFocused) {
             e.preventDefault()
-            this.toggleCameraPause()
+            this.fetchDashboardPoints()
+            this.showToast('Standings Refreshed!')
           }
           break
 
@@ -1808,46 +1756,13 @@ class TvApp {
     }
   }
 
-  switchView(viewName, shouldFetch = true) {
-    this.currentView = viewName
-
-    const isDb = viewName === 'dashboard'
-    const isStandby = viewName === 'standby'
-    const isResult = viewName === 'result'
-
-    this.dom.viewDashboard?.classList.toggle('active', isDb)
-    this.dom.viewStandby?.classList.toggle('active', isStandby)
-    this.dom.viewResult?.classList.toggle('active', isResult)
-
-    if (isDb) {
-      this.stopCountdown()
-      this.stopSuperResolutionScanner()
-      window.location.hash = ''
-      if (this.dom.navViewLabel) this.dom.navViewLabel.textContent = 'QR SCANNER'
-      if (this.dom.btnToggleNavView) {
-        this.dom.btnToggleNavView.style.background = 'rgba(184, 25, 60, 0.25)'
-        this.dom.btnToggleNavView.style.borderColor = 'var(--accent)'
-      }
-      if (shouldFetch) {
-        this.fetchDashboardPoints()
-      }
-    } else if (isStandby) {
-      this.stopCountdown()
-      window.location.hash = ''
-      if (this.dom.navViewLabel) this.dom.navViewLabel.textContent = 'LEADERBOARD'
-      if (this.dom.btnToggleNavView) {
-        this.dom.btnToggleNavView.style.background = 'rgba(255, 255, 255, 0.08)'
-        this.dom.btnToggleNavView.style.borderColor = 'rgba(255, 255, 255, 0.2)'
-      }
-      // Start camera scanner only when opening scanner view
-      if (!this.isCameraRunning) {
-        this.initCameraScanner()
-      }
-    } else if (isResult) {
-      if (this.dom.navViewLabel) this.dom.navViewLabel.textContent = 'LEADERBOARD'
-      if (this.currentParticipant) {
-        window.location.hash = this.currentParticipant.chess_number
-      }
+  switchView(viewName = 'dashboard', shouldFetch = true) {
+    this.currentView = 'dashboard'
+    if (this.dom.viewDashboard) {
+      this.dom.viewDashboard.classList.add('active')
+    }
+    if (shouldFetch) {
+      this.fetchDashboardPoints()
     }
   }
 
