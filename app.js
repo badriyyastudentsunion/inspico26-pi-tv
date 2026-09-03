@@ -193,6 +193,8 @@ class TvApp {
         .map(i => (typeof i === 'string' ? i : (i?.isDivider ? null : i?.id)))
         .filter(Boolean)
 
+      this.announcerSeqCompIds = seqCompIds
+
       // Only include competitions up to the revealed milestone divider (e.g. After 40 Results)
       const includedComps = revealedMilestone > 0 ? seqCompIds.slice(0, revealedMilestone) : seqCompIds
       const excludeComps = revealedMilestone > 0 ? seqCompIds.slice(revealedMilestone) : []
@@ -652,7 +654,7 @@ class TvApp {
         .select(`
           id, position, grade, placement_points, grade_points, published_at, competition_id,
           participants(id, name, chess_number, teams(id, name)),
-          competitions(id, name, category)
+          competitions(id, name, competition_type)
         `)
         .eq('competition_id', compId)
         .eq('published', true)
@@ -660,7 +662,7 @@ class TvApp {
       if (error || !results || results.length === 0) return
 
       const compName = results[0]?.competitions?.name || 'Competition Result'
-      const compCategory = results[0]?.competitions?.category || 'Arts Festival'
+      const compCategory = results[0]?.competitions?.competition_type || 'Arts Festival'
 
       this.triggerBreakingResultAnnouncement(compName, compCategory, results)
     } catch (e) {
@@ -677,7 +679,7 @@ class TvApp {
         .select(`
           id, position, grade, placement_points, grade_points, published_at, competition_id,
           participants(id, name, chess_number, teams(id, name)),
-          competitions(id, name, category)
+          competitions(id, name, competition_type)
         `)
         .eq('published', true)
         .order('published_at', { ascending: false })
@@ -692,7 +694,7 @@ class TvApp {
           if (!newCompMap[r.competition_id]) {
             newCompMap[r.competition_id] = {
               compName: r.competitions?.name || 'Competition Result',
-              compCategory: r.competitions?.category || 'Arts Festival',
+              compCategory: r.competitions?.competition_type || 'Arts Festival',
               results: []
             }
           }
@@ -716,7 +718,7 @@ class TvApp {
     }
   }
 
-  triggerBreakingResultAnnouncement(compName, compCategory, results) {
+  triggerBreakingResultAnnouncement(compName, compCategory, results, resultNumber = null) {
     if (!this.dom.resultAnnouncementOverlay) return
     this.isAnnouncementActive = true
 
@@ -725,6 +727,22 @@ class TvApp {
     }
     if (this.dom.announcementCompCategory) {
       this.dom.announcementCompCategory.textContent = `${compCategory ? compCategory.toUpperCase() + ' • ' : ''}RESULT PUBLISHED`
+    }
+
+    // Determine Result Number
+    if (!resultNumber && results && results.length > 0) {
+      const compId = results[0].competition_id
+      if (this.announcerSeqCompIds && this.announcerSeqCompIds.length > 0) {
+        const idx = this.announcerSeqCompIds.indexOf(compId)
+        if (idx !== -1) {
+          resultNumber = idx + 1
+        }
+      }
+    }
+
+    const numEl = document.getElementById('announcementResultNumberText')
+    if (numEl) {
+      numEl.textContent = resultNumber ? `RESULT #${resultNumber}` : 'RESULT PUBLISHED'
     }
 
     // Sort winners: 1st, 2nd, 3rd
@@ -754,7 +772,6 @@ class TvApp {
         return `
           <div class="ann-winner-card ${posClass}">
             <div class="ann-rank-badge">${posLabel}</div>
-            <div class="ann-chest-badge">#${this.escapeHtml(chest)}</div>
             <div class="ann-student-name">${this.escapeHtml(student)}</div>
             <div class="ann-team-pill" style="--team-col: ${teamColor};">
               <span class="ann-team-dot" style="background: ${teamColor};"></span>
@@ -788,34 +805,20 @@ class TvApp {
       this.dom.announcementTimerText.textContent = `Returning to Standings in ${timeLeft}s...`
     }
 
-    if (this.dom.announcementProgressBar) {
-      this.dom.announcementProgressBar.style.transition = 'none'
-      this.dom.announcementProgressBar.style.width = '100%'
-      void this.dom.announcementProgressBar.offsetWidth // force reflow
-      this.dom.announcementProgressBar.style.transition = 'width 20s linear'
-      this.dom.announcementProgressBar.style.width = '0%'
+    if (this.announcementCountdownTimeout) {
+      clearTimeout(this.announcementCountdownTimeout)
     }
 
-    if (this.announcementCountdownInterval) {
-      clearInterval(this.announcementCountdownInterval)
-    }
-
-    this.announcementCountdownInterval = setInterval(() => {
-      timeLeft--
-      if (this.dom.announcementTimerText) {
-        this.dom.announcementTimerText.textContent = `Returning to Standings in ${timeLeft}s...`
-      }
-
-      if (timeLeft <= 0) {
-        this.closeResultAnnouncement()
-      }
-    }, 1000)
+    // Auto-close overlay after exactly 20 seconds
+    this.announcementCountdownTimeout = setTimeout(() => {
+      this.closeResultAnnouncement()
+    }, 20000)
   }
 
   closeResultAnnouncement() {
-    if (this.announcementCountdownInterval) {
-      clearInterval(this.announcementCountdownInterval)
-      this.announcementCountdownInterval = null
+    if (this.announcementCountdownTimeout) {
+      clearTimeout(this.announcementCountdownTimeout)
+      this.announcementCountdownTimeout = null
     }
 
     if (this.dom.resultAnnouncementOverlay) {
@@ -829,16 +832,57 @@ class TvApp {
     this.fetchStandbyData()
   }
 
-  testResultAnnouncement() {
-    this.triggerBreakingResultAnnouncement(
-      'KATHAPRASANGAM (SENIOR BOYS)',
-      'GENERAL • STAGE 1',
-      [
-        { position: 1, grade: 'A+', participants: { name: 'MUHAMMED SHAN', chess_number: '108', teams: { name: 'Sharqawi' } } },
-        { position: 2, grade: 'A', participants: { name: 'AHMED RIZWAN', chess_number: '215', teams: { name: 'Zahrawi' } } },
-        { position: 3, grade: 'A', participants: { name: 'BILAL HASSAN', chess_number: '304', teams: { name: 'Barmawi' } } }
-      ]
-    )
+  async testResultAnnouncement() {
+    if (!this.supabase) {
+      this.showToast('Database connection not ready')
+      return
+    }
+
+    try {
+      this.showToast('Loading latest published competition...')
+
+      // 1. Find the latest published competition_id
+      const { data: latestRow, error: err1 } = await this.supabase
+        .from('competition_results')
+        .select('competition_id')
+        .eq('published', true)
+        .order('published_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (err1 || !latestRow || !latestRow.competition_id) {
+        this.showToast('No published results found in database yet.')
+        return
+      }
+
+      const compId = latestRow.competition_id
+
+      // 2. Fetch all winners and details for this latest competition
+      const { data: results, error: err2 } = await this.supabase
+        .from('competition_results')
+        .select(`
+          id, position, grade, placement_points, grade_points, published_at, competition_id,
+          participants(id, name, chess_number, teams(id, name)),
+          competitions(id, name, competition_type)
+        `)
+        .eq('competition_id', compId)
+        .eq('published', true)
+
+      if (err2 || !results || results.length === 0) {
+        this.showToast('Could not load winners for latest competition.')
+        return
+      }
+
+      const compName = results[0]?.competitions?.name || 'Competition Result'
+      const compCategory = results[0]?.competitions?.competition_type || 'Arts Festival'
+
+      // 3. Trigger 20-second Breaking Result Announcement with REAL data from database
+      this.triggerBreakingResultAnnouncement(compName, compCategory, results)
+
+    } catch (e) {
+      console.error('Error fetching real latest announcement:', e)
+      this.showToast('Error loading latest announcement')
+    }
   }
 
   startDashboardSync() {

@@ -421,7 +421,7 @@
         <div class="announcement-header">
           <div class="announcement-badge-pill">
             <span class="announcement-live-dot"></span>
-            <span>⚡ LIVE RESULT ANNOUNCEMENT</span>
+            <span id="announcementResultNumberText">RESULT #</span>
           </div>
           <button class="announcement-close-btn" id="btnCloseAnnouncement" title="Dismiss (Esc)">&times;</button>
         </div>
@@ -437,9 +437,8 @@
           <!-- Populated dynamically via JS -->
         </div>
 
-        <!-- Bottom Status / 20s Countdown Timer -->
+        <!-- Bottom 20s Countdown Progress Bar -->
         <div class="announcement-footer">
-          <div class="announcement-timer-text" id="announcementTimerText">Returning to Standings in 20s...</div>
           <div class="announcement-progress-track">
             <div class="announcement-progress-bar" id="announcementProgressBar"></div>
           </div>
