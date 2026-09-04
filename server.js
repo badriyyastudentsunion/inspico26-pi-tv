@@ -44,6 +44,10 @@ let localTvState = {
     muted: false,
     loop: true
   },
+  slideshow_mode: {
+    active: false,
+    speed: 7
+  },
   updated_at: Date.now()
 }
 

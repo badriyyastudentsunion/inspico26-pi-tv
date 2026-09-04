@@ -1064,6 +1064,8 @@
 
         this.latestTelemetry = null;
         this.lastTelemetryTime = null;
+        this.lastUserActionTime = 0;
+        this.pendingSlideshowState = null;
 
         this.init();
       }
@@ -1322,10 +1324,16 @@
           this.dom.nowPlayingBanner.classList.remove('active');
         }
 
-        // 3. Slideshow state
-        const sm = state.slideshow_mode;
-        this.isSlideshowActive = Boolean(sm && sm.active);
-        this.updateSlideshowUi(this.isSlideshowActive);
+        // 3. Slideshow state (with race-condition protection after user tap)
+        if (Date.now() - this.lastUserActionTime < 3500 && this.pendingSlideshowState !== null) {
+          this.isSlideshowActive = this.pendingSlideshowState;
+          this.updateSlideshowUi(this.isSlideshowActive);
+        } else {
+          this.pendingSlideshowState = null;
+          const sm = state.slideshow_mode;
+          this.isSlideshowActive = Boolean(sm && sm.active);
+          this.updateSlideshowUi(this.isSlideshowActive);
+        }
 
         this.highlightActiveVideoInList();
       }
@@ -1441,6 +1449,8 @@
       async toggleSlideshow() {
         const nextState = !this.isSlideshowActive;
         this.isSlideshowActive = nextState;
+        this.pendingSlideshowState = nextState;
+        this.lastUserActionTime = Date.now();
         this.updateSlideshowUi(nextState);
 
         const payload = {
