@@ -1183,6 +1183,30 @@
       }
 
       startStateSyncPoller() {
+        const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname) ||
+                            window.location.hostname.startsWith('192.168.') ||
+                            window.location.hostname.startsWith('10.');
+
+        if (!isLocalHost) {
+          // On GitHub Pages / Cloud, poll Supabase every 6s as backup to Realtime WebSocket
+          setInterval(async () => {
+            if (!this.supabase) return;
+            try {
+              const { data } = await this.supabase
+                .from('app_settings')
+                .select('value')
+                .eq('key', 'tv_remote_control')
+                .maybeSingle();
+              if (data?.value) {
+                const state = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+                this.applyState(state);
+              }
+            } catch (e) {}
+          }, 6000);
+          return;
+        }
+
+        // On Local Pi Wi-Fi venue, fast 800ms poller
         setInterval(async () => {
           try {
             const res = await fetch('/api/tv-state', { cache: 'no-store' });
@@ -1589,22 +1613,45 @@
         };
 
         // Ultra-fast Concurrent Push (Local Wi-Fi + Cloud in parallel)
-        const localPromise = fetch('/api/tv-state', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        }).catch(() => {});
+        const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname) ||
+                            window.location.hostname.startsWith('192.168.') ||
+                            window.location.hostname.startsWith('10.');
 
-        const cloudPromise = this.supabase ? this.supabase
-          .from('app_settings')
-          .upsert({
-            key: 'tv_remote_control',
-            value: JSON.stringify(payload)
-          }, { onConflict: 'key' })
-          .catch(() => {}) : Promise.resolve();
+        const pushTasks = [];
 
-        // Don't stall UI; respond instantly
-        await Promise.race([localPromise, cloudPromise]);
+        // 1. Local Wi-Fi Pi Push (only on local network, not on GitHub Pages)
+        if (isLocalHost) {
+          pushTasks.push(
+            fetch('/api/tv-state', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            }).catch(() => {})
+          );
+        }
+
+        // 2. Supabase Cloud Push (works everywhere: GitHub Pages, mobile, cloud)
+        if (this.supabase) {
+          pushTasks.push(
+            (async () => {
+              try {
+                await this.supabase
+                  .from('app_settings')
+                  .upsert({
+                    key: 'tv_remote_control',
+                    value: JSON.stringify(payload),
+                    updated_at: new Date().toISOString()
+                  }, { onConflict: 'key' });
+              } catch (e) {
+                console.warn('Supabase remote state push error:', e);
+              }
+            })()
+          );
+        }
+
+        if (pushTasks.length > 0) {
+          await Promise.race(pushTasks);
+        }
       }
 
       async forceRefreshTv() {
@@ -1684,6 +1731,20 @@
       }
 
       async fetchLocalVideos() {
+        const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname) ||
+                            window.location.hostname.startsWith('192.168.') ||
+                            window.location.hostname.startsWith('10.');
+
+        if (!isLocalHost) {
+          this.dom.videoItemsContainer.innerHTML = `
+            <div class="empty-videos-msg">
+              🌐 Online Cloud Remote Mode<br>
+              Paste YouTube or Google Drive video link below to play!
+            </div>
+          `;
+          return;
+        }
+
         try {
           const res = await fetch('/api/videos', { cache: 'no-store' });
           if (!res.ok) throw new Error('Cannot fetch video list');
