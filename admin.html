@@ -789,6 +789,39 @@
       </div>
     </section>
 
+    <!-- ==========================================================================
+         GALLERY PHOTO SLIDESHOW BROADCAST CARD
+         ========================================================================== -->
+    <section class="control-card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          Gallery Photo Slideshow
+        </h2>
+      </div>
+      <p class="card-desc">Showcase live festival photography from the media team on the TV with 60 FPS smooth cinematic transitions.</p>
+
+      <button class="blackout-toggle-btn" id="btnToggleSlideshow" style="border-color: rgba(184, 25, 60, 0.4); background: linear-gradient(135deg, rgba(184, 25, 60, 0.15) 0%, rgba(20, 10, 15, 0.9) 100%);">
+        <div class="btn-text-group">
+          <span class="btn-main-label" id="slideshowMainLabel">SLIDESHOW IS OFF</span>
+          <span class="btn-sub-label" id="slideshowSubLabel">Tap to Start Gallery Slideshow on TV</span>
+        </div>
+        <div class="toggle-pill-indicator">
+          <div class="toggle-thumb" id="slideshowThumb" style="background: var(--text-muted); box-shadow: none;"></div>
+        </div>
+      </button>
+
+      <!-- Slideshow Speed Controls -->
+      <div class="playback-options-grid">
+        <div class="option-pill" id="btnSpeed5s">
+          <span class="option-label">⏱️ Fast (5s)</span>
+        </div>
+        <div class="option-pill active" id="btnSpeed7s">
+          <span class="option-label">⏱️ Balanced (7s)</span>
+        </div>
+      </div>
+    </section>
+
     <!-- QUICK ACTIONS -->
     <section class="control-card">
       <div class="card-header">
@@ -826,6 +859,8 @@
         this.isVideoLoop = true;
         this.activeVideoUrl = null;
         this.activeVideoFilename = null;
+        this.isSlideshowActive = false;
+        this.slideshowSpeed = 7;
 
         this.dom = {
           pinLockModal: document.getElementById('pinLockModal'),
@@ -859,7 +894,15 @@
           btnRefreshVideos: document.getElementById('btnRefreshVideos'),
           videoItemsContainer: document.getElementById('videoItemsContainer'),
           customVideoUrlInput: document.getElementById('customVideoUrlInput'),
-          btnPlayCustomUrl: document.getElementById('btnPlayCustomUrl')
+          btnPlayCustomUrl: document.getElementById('btnPlayCustomUrl'),
+
+          // Slideshow DOM
+          btnToggleSlideshow: document.getElementById('btnToggleSlideshow'),
+          slideshowMainLabel: document.getElementById('slideshowMainLabel'),
+          slideshowSubLabel: document.getElementById('slideshowSubLabel'),
+          slideshowThumb: document.getElementById('slideshowThumb'),
+          btnSpeed5s: document.getElementById('btnSpeed5s'),
+          btnSpeed7s: document.getElementById('btnSpeed7s')
         };
 
         this.init();
@@ -1007,6 +1050,11 @@
           this.dom.nowPlayingBanner.classList.remove('active');
         }
 
+        // 3. Slideshow state
+        const sm = state.slideshow_mode;
+        this.isSlideshowActive = Boolean(sm && sm.active);
+        this.updateSlideshowUi(this.isSlideshowActive);
+
         this.highlightActiveVideoInList();
       }
 
@@ -1095,6 +1143,81 @@
           const filename = url.includes('drive.google.com') ? 'Google Drive Stream' : url.split('/').pop() || 'Live Video';
           this.playTvVideo(url, filename);
         });
+
+        // Slideshow Toggle
+        this.dom.btnToggleSlideshow.addEventListener('click', () => {
+          if (navigator.vibrate) navigator.vibrate(30);
+          this.toggleSlideshow();
+        });
+
+        // Slideshow Speeds
+        this.dom.btnSpeed5s.addEventListener('click', () => {
+          this.setSlideshowSpeed(5);
+        });
+        this.dom.btnSpeed7s.addEventListener('click', () => {
+          this.setSlideshowSpeed(7);
+        });
+      }
+
+      async toggleSlideshow() {
+        const nextState = !this.isSlideshowActive;
+        this.isSlideshowActive = nextState;
+        this.updateSlideshowUi(nextState);
+
+        const payload = {
+          slideshow_mode: {
+            active: nextState,
+            speed: this.slideshowSpeed
+          }
+        };
+
+        // If activating slideshow, explicitly turn OFF video mode so they never conflict
+        if (nextState) {
+          this.activeVideoUrl = null;
+          this.activeVideoFilename = null;
+          this.dom.nowPlayingBanner.classList.remove('active');
+          payload.video_mode = { active: false, url: '', filename: '' };
+        }
+
+        await this.sendTvStateUpdate(payload);
+
+        this.showToast(nextState ? '📸 Gallery Slideshow Started on TV' : '🖼️ Slideshow Stopped (Returned to Standings)');
+      }
+
+      setSlideshowSpeed(speed) {
+        this.slideshowSpeed = speed;
+        this.dom.btnSpeed5s.classList.toggle('active', speed === 5);
+        this.dom.btnSpeed7s.classList.toggle('active', speed === 7);
+
+        if (this.isSlideshowActive) {
+          this.sendTvStateUpdate({
+            slideshow_mode: {
+              active: true,
+              speed: this.slideshowSpeed
+            }
+          });
+        }
+        this.showToast(`⏱️ Slideshow interval: ${speed}s`);
+      }
+
+      updateSlideshowUi(isActive) {
+        if (isActive) {
+          this.dom.btnToggleSlideshow.style.borderColor = 'var(--green)';
+          this.dom.btnToggleSlideshow.style.background = 'linear-gradient(135deg, rgba(46, 204, 113, 0.2) 0%, rgba(20, 10, 15, 0.9) 100%)';
+          this.dom.slideshowMainLabel.textContent = 'SLIDESHOW IS LIVE';
+          this.dom.slideshowSubLabel.textContent = 'Tap to Stop Slideshow & Return to Standings';
+          this.dom.slideshowThumb.style.left = '28px';
+          this.dom.slideshowThumb.style.background = 'var(--green)';
+          this.dom.slideshowThumb.style.boxShadow = '0 0 10px var(--green)';
+        } else {
+          this.dom.btnToggleSlideshow.style.borderColor = 'rgba(184, 25, 60, 0.4)';
+          this.dom.btnToggleSlideshow.style.background = 'linear-gradient(135deg, rgba(184, 25, 60, 0.15) 0%, rgba(20, 10, 15, 0.9) 100%)';
+          this.dom.slideshowMainLabel.textContent = 'SLIDESHOW IS OFF';
+          this.dom.slideshowSubLabel.textContent = 'Tap to Start Gallery Slideshow on TV';
+          this.dom.slideshowThumb.style.left = '4px';
+          this.dom.slideshowThumb.style.background = 'var(--text-muted)';
+          this.dom.slideshowThumb.style.boxShadow = 'none';
+        }
       }
 
       async toggleBlackout() {
@@ -1114,11 +1237,16 @@
         this.activeVideoUrl = url;
         this.activeVideoFilename = filename;
 
+        // If playing video, turn OFF slideshow mode so they don't conflict
+        this.isSlideshowActive = false;
+        this.updateSlideshowUi(false);
+
         this.dom.nowPlayingBanner.classList.add('active');
         this.dom.nowPlayingTitle.textContent = filename;
         this.highlightActiveVideoInList();
 
         await this.sendTvStateUpdate({
+          slideshow_mode: { active: false },
           video_mode: {
             active: true,
             url: url,

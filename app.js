@@ -112,7 +112,12 @@ class TvApp {
       tvVideoOverlay: document.getElementById('tvVideoOverlay'),
       tvVideoPlayer: document.getElementById('tvVideoPlayer'),
       tvVideoLoader: document.getElementById('tvVideoLoader'),
-      tvVideoLoaderText: document.getElementById('tvVideoLoaderText')
+      tvVideoLoaderText: document.getElementById('tvVideoLoaderText'),
+
+      // Remote Gallery Slideshow Overlay
+      tvSlideshowOverlay: document.getElementById('tvSlideshowOverlay'),
+      slideshowSlideA: document.getElementById('slideshowSlideA'),
+      slideshowSlideB: document.getElementById('slideshowSlideB')
     }
 
     this.seenPublishedCompIds = new Set()
@@ -124,6 +129,14 @@ class TvApp {
     this.isVideoPlaying = false
     this.currentPlayingVideoUrl = null
     this.wasVideoPlayingBeforeAnnouncement = false
+
+    // Slideshow state
+    this.isSlideshowActive = false
+    this.slideshowPhotos = []
+    this.slideshowIndex = 0
+    this.slideshowInterval = null
+    this.currentSlideSlot = 'A'
+    this.wasSlideshowActiveBeforeAnnouncement = false
 
     this.init()
   }
@@ -727,8 +740,8 @@ class TvApp {
     }
 
     this.posterRotationTimer = setTimeout(() => {
-      if (this.currentView !== 'dashboard' || !this.activeMilestonePosterUrl || this.isAnnouncementActive) {
-        // Reschedule check in 5s if announcement is active
+      if (this.currentView !== 'dashboard' || !this.activeMilestonePosterUrl || this.isAnnouncementActive || this.isSlideshowActive || this.isVideoPlaying) {
+        // Reschedule check in 5s if announcement, slideshow, or video is active
         this.scheduleNextBroadcastPhase(showingPoster, 5000)
         return
       }
@@ -771,10 +784,31 @@ class TvApp {
 
     // 2. Full-Screen Remote Video Broadcast handling
     const videoMode = state.video_mode
-    if (videoMode && videoMode.active && videoMode.url) {
+    const isVideoActive = Boolean(videoMode && videoMode.active && videoMode.url)
+
+    // 3. Full-Screen Gallery Slideshow handling
+    const slideshowMode = state.slideshow_mode
+    const isSlideshowWanted = Boolean(slideshowMode && slideshowMode.active)
+
+    if (isVideoActive) {
+      // If video is active, slideshow must be stopped
+      if (this.isSlideshowActive) {
+        this.stopGallerySlideshow()
+      }
       this.playRemoteVideo(videoMode)
     } else {
       this.stopRemoteVideo()
+
+      // If video is not active, run slideshow if wanted
+      if (isSlideshowWanted) {
+        if (!this.isSlideshowActive) {
+          this.startGallerySlideshow(slideshowMode.speed || 7)
+        }
+      } else {
+        if (this.isSlideshowActive) {
+          this.stopGallerySlideshow()
+        }
+      }
     }
   }
 
@@ -840,7 +874,12 @@ class TvApp {
       if (this.dom.tvVideoLoader) {
         this.dom.tvVideoLoader.classList.remove('active')
       }
-      this.showToast('⚠️ Video playback error, check URL format')
+      if (this.dom.tvVideoOverlay) {
+        this.dom.tvVideoOverlay.classList.remove('active')
+      }
+      this.isVideoPlaying = false
+      this.currentPlayingVideoUrl = null
+      this.showToast('⚠️ Video could not be played, check link')
     }
 
     player.onended = () => {
@@ -852,16 +891,16 @@ class TvApp {
   }
 
   stopRemoteVideo() {
-    if (!this.isVideoPlaying && !this.dom.tvVideoOverlay?.classList.contains('active')) return
-
-    console.log('⏹️ Stopping remote video on TV')
     this.isVideoPlaying = false
     this.currentPlayingVideoUrl = null
     this.wasVideoPlayingBeforeAnnouncement = false
 
     if (this.dom.tvVideoPlayer) {
-      this.dom.tvVideoPlayer.pause()
-      this.dom.tvVideoPlayer.src = ''
+      try {
+        this.dom.tvVideoPlayer.pause()
+        this.dom.tvVideoPlayer.removeAttribute('src')
+        this.dom.tvVideoPlayer.load()
+      } catch (e) {}
     }
 
     if (this.dom.tvVideoLoader) {
@@ -873,8 +912,130 @@ class TvApp {
     }
   }
 
+  // --------------------------------------------------------------------------
+  // CINEMATIC GALLERY PHOTO SLIDESHOW ENGINE (Ken Burns 60 FPS)
+  // --------------------------------------------------------------------------
+  async fetchGallerySlideshowPhotos() {
+    if (!this.supabase) return []
+    try {
+      const { data, error } = await this.supabase
+        .from('gallery_media')
+        .select('id, hd_url, thumb_url, created_at')
+        .is('milestone', null)
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      if (error || !data) return []
+      return data
+    } catch (e) {
+      console.warn('Error fetching gallery slideshow photos:', e)
+      return []
+    }
+  }
+
+  async startGallerySlideshow(speedSeconds = 7) {
+    if (this.isSlideshowActive) return
+    console.log('📸 Starting Cinematic Gallery Slideshow on TV, speed:', speedSeconds, 's')
+
+    this.isSlideshowActive = true
+    this.slideshowPhotos = await this.fetchGallerySlideshowPhotos()
+
+    if (this.slideshowPhotos.length === 0) {
+      console.warn('No event photos found in gallery_media for slideshow')
+      this.showToast('No gallery photos available yet')
+      this.isSlideshowActive = false
+      return
+    }
+
+    if (this.dom.tvSlideshowOverlay) {
+      this.dom.tvSlideshowOverlay.classList.add('active')
+    }
+
+    this.slideshowIndex = 0
+    this.currentSlideSlot = 'A'
+    await this.renderCurrentSlideshowSlide()
+
+    if (this.slideshowInterval) clearInterval(this.slideshowInterval)
+    this.slideshowInterval = setInterval(() => {
+      if (!this.isAnnouncementActive) {
+        this.nextSlideshowSlide()
+      }
+    }, speedSeconds * 1000)
+  }
+
+  async nextSlideshowSlide() {
+    if (!this.isSlideshowActive || this.slideshowPhotos.length === 0) return
+
+    this.slideshowIndex = (this.slideshowIndex + 1) % this.slideshowPhotos.length
+    await this.renderCurrentSlideshowSlide()
+  }
+
+  async renderCurrentSlideshowSlide() {
+    const photo = this.slideshowPhotos[this.slideshowIndex]
+    if (!photo) return
+
+    const photoUrl = photo.hd_url || photo.thumb_url
+    if (!photoUrl) return
+
+    // Preload into memory first (Zero blank screen)
+    await this.preloadImage(photoUrl)
+
+    const slotA = this.dom.slideshowSlideA
+    const slotB = this.dom.slideshowSlideB
+    if (!slotA || !slotB) return
+
+    if (this.currentSlideSlot === 'A') {
+      slotA.style.backgroundImage = `url('${photoUrl}')`
+      slotA.classList.remove('visible')
+      void slotA.offsetWidth // force reflow
+      slotA.classList.add('visible')
+      slotB.classList.remove('visible')
+      this.currentSlideSlot = 'B'
+    } else {
+      slotB.style.backgroundImage = `url('${photoUrl}')`
+      slotB.classList.remove('visible')
+      void slotB.offsetWidth // force reflow
+      slotB.classList.add('visible')
+      slotA.classList.remove('visible')
+      this.currentSlideSlot = 'A'
+    }
+
+    // Proactively preload NEXT slide in queue so it's instant!
+    const nextIdx = (this.slideshowIndex + 1) % this.slideshowPhotos.length
+    const nextPhoto = this.slideshowPhotos[nextIdx]
+    if (nextPhoto) {
+      const nextUrl = nextPhoto.hd_url || nextPhoto.thumb_url
+      if (nextUrl) this.preloadImage(nextUrl)
+    }
+  }
+
+  stopGallerySlideshow() {
+    if (!this.isSlideshowActive) return
+    console.log('⏹️ Stopping Gallery Slideshow on TV')
+
+    this.isSlideshowActive = false
+    this.wasSlideshowActiveBeforeAnnouncement = false
+
+    if (this.slideshowInterval) {
+      clearInterval(this.slideshowInterval)
+      this.slideshowInterval = null
+    }
+
+    if (this.dom.tvSlideshowOverlay) {
+      this.dom.tvSlideshowOverlay.classList.remove('active')
+    }
+
+    if (this.dom.slideshowSlideA) this.dom.slideshowSlideA.classList.remove('visible')
+    if (this.dom.slideshowSlideB) this.dom.slideshowSlideB.classList.remove('visible')
+  }
+
   // 100% Offline Local State Poller (Ensures phone and Pi talk over WiFi with 0 internet)
   initLocalStatePoller() {
+    const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname) ||
+                    window.location.hostname.startsWith('192.168.') ||
+                    window.location.hostname.startsWith('10.')
+    if (!isLocal) return
+
     setInterval(async () => {
       try {
         const res = await fetch('/api/tv-state', { cache: 'no-store' })
@@ -883,7 +1044,7 @@ class TvApp {
           this.handleTvRemoteState(state)
         }
       } catch (e) {
-        // Silent on static hosts like GitHub Pages
+        // Silent
       }
     }, 2000)
   }
@@ -1120,6 +1281,12 @@ class TvApp {
       this.wasVideoPlayingBeforeAnnouncement = true
     }
 
+    // Hide slideshow temporarily during breaking result announcement
+    if (this.isSlideshowActive && this.dom.tvSlideshowOverlay?.classList.contains('active')) {
+      this.dom.tvSlideshowOverlay.classList.remove('active')
+      this.wasSlideshowActiveBeforeAnnouncement = true
+    }
+
     // Show Overlay
     this.dom.resultAnnouncementOverlay.classList.add('active')
 
@@ -1171,6 +1338,13 @@ class TvApp {
       console.log('▶️ Resuming video playback after result announcements completed')
       this.dom.tvVideoPlayer.play().catch(() => {})
       this.wasVideoPlayingBeforeAnnouncement = false
+    }
+
+    // Resume gallery slideshow if slideshow was active prior to announcement
+    if (this.wasSlideshowActiveBeforeAnnouncement && this.isSlideshowActive && this.dom.tvSlideshowOverlay) {
+      console.log('📸 Resuming gallery slideshow after result announcements completed')
+      this.dom.tvSlideshowOverlay.classList.add('active')
+      this.wasSlideshowActiveBeforeAnnouncement = false
     }
 
     // Refresh standings & replay points roll with newly published points
