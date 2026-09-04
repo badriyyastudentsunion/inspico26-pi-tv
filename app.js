@@ -1904,7 +1904,7 @@ class TvApp {
 
     const checkVersion = async () => {
       try {
-        const res = await fetch(`/version.json?_t=${Date.now()}`, { cache: 'no-store' })
+        const res = await fetch(`version.json?_t=${Date.now()}`, { cache: 'no-store' })
         if (!res.ok) return
         const data = await res.json()
 
