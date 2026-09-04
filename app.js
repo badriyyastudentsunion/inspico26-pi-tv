@@ -361,8 +361,15 @@ class TvApp {
       this.revealedMilestone = revealedMilestone
 
       // Update Header with exact Milestone text (e.g. STATUS AFTER 40 RESULTS or FINAL STATUS)
+      // ONLY show FINAL STATUS when the final milestone divider is EXPLICITLY published/revealed by admin!
+      // NEVER show it prematurely just because all individual competitions are published.
       const totalCompsCount = Number(compsCountRes?.count) || seqCompIds.length || 0
-      const isAllResultsPublished = (totalCompsCount > 0 && (revealedMilestone >= totalCompsCount || publishedCompIds.size >= totalCompsCount)) || (revealedMilestone >= 135)
+      const isAllResultsPublished = Boolean(
+        revealedMilestone > 0 && (
+          (totalCompsCount > 0 && revealedMilestone >= totalCompsCount) ||
+          (revealedMilestone >= 135)
+        )
+      )
       this.isAllResultsPublished = isAllResultsPublished
 
       const headingEl = document.getElementById('dashboardMilestoneTitle') || document.querySelector('.broadcast-main-heading')
