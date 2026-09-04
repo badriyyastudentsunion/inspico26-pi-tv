@@ -544,11 +544,6 @@ class TvApp {
           <div class="team-score-block">
             <div class="score-points-number" id="pts-count-${team.id}" data-val="${team.totalPoints}">0</div>
             <div class="score-unit-text">POINTS</div>
-            ${this.isAllResultsPublished && team.adjustmentNet ? `
-              <div class="team-bonus-tag" style="font-size: 13px; font-weight: 700; color: ${team.adjustmentNet >= 0 ? '#2ed573' : '#ff4757'}; letter-spacing: 0.5px; margin-top: 4px;">
-                (INCL. ${team.adjustmentNet >= 0 ? '+' : ''}${team.adjustmentNet} BONUS)
-              </div>
-            ` : ''}
 
             <div class="team-progress-bar-wrap">
               <div class="team-progress-bar-fill" id="bar-fill-${team.id}" style="width: 0%; background: ${team.color};"></div>
