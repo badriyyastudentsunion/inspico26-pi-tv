@@ -13,7 +13,7 @@
   <style>
     :root {
       --bg-root: #0a0709;
-      --card-bg: rgba(22, 16, 21, 0.85);
+      --card-bg: rgba(22, 16, 21, 0.9);
       --card-border: rgba(255, 255, 255, 0.1);
       --accent: #B8193C;
       --accent-bright: #FF1A4B;
@@ -44,10 +44,11 @@
 
     .admin-container {
       width: 100%;
-      max-width: 480px;
+      max-width: 500px;
       display: flex;
       flex-direction: column;
       gap: 16px;
+      padding-bottom: 40px;
     }
 
     /* Top Bar */
@@ -118,10 +119,10 @@
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 24px;
-      padding: 24px 20px;
+      padding: 22px 18px;
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 16px;
       box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
     }
 
@@ -132,7 +133,7 @@
     }
 
     .card-title {
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 800;
       color: #fff;
       display: flex;
@@ -149,7 +150,7 @@
     /* Master Blackout Button */
     .blackout-toggle-btn {
       width: 100%;
-      padding: 24px 20px;
+      padding: 20px 18px;
       border-radius: 20px;
       border: 2px solid rgba(46, 204, 113, 0.4);
       background: linear-gradient(135deg, rgba(46, 204, 113, 0.15) 0%, rgba(46, 204, 113, 0.05) 100%);
@@ -179,7 +180,7 @@
     }
 
     .btn-main-label {
-      font-size: 20px;
+      font-size: 18px;
       font-weight: 900;
       letter-spacing: 0.5px;
     }
@@ -191,17 +192,17 @@
     }
 
     .toggle-pill-indicator {
-      width: 58px;
-      height: 32px;
+      width: 54px;
+      height: 30px;
       background: rgba(255, 255, 255, 0.15);
-      border-radius: 16px;
+      border-radius: 15px;
       position: relative;
       transition: background 0.3s ease;
     }
 
     .toggle-thumb {
-      width: 24px;
-      height: 24px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
       background: var(--green);
       position: absolute;
@@ -216,7 +217,7 @@
     }
 
     .blackout-toggle-btn.is-blank .toggle-thumb {
-      left: 30px;
+      left: 28px;
       background: #e74c3c;
       box-shadow: 0 0 10px #e74c3c;
     }
@@ -226,14 +227,14 @@
       background: rgba(0, 0, 0, 0.35);
       border: 1px solid rgba(255, 255, 255, 0.06);
       border-radius: 16px;
-      padding: 14px 16px;
+      padding: 12px 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
 
     .state-label {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
       color: var(--text-muted);
       text-transform: uppercase;
@@ -241,25 +242,323 @@
     }
 
     .state-value {
+      font-size: 13px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    /* ==========================================================================
+       VIDEO BROADCAST SECTION STYLES
+       ========================================================================== */
+    .now-playing-banner {
+      display: none;
+      background: linear-gradient(135deg, rgba(184, 25, 60, 0.25) 0%, rgba(20, 10, 15, 0.8) 100%);
+      border: 1px solid var(--accent);
+      border-radius: 16px;
+      padding: 14px 16px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .now-playing-banner.active {
+      display: flex;
+    }
+
+    .np-info {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      overflow: hidden;
+    }
+
+    .np-tag {
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      color: var(--accent-bright);
+      text-transform: uppercase;
+    }
+
+    .np-title {
       font-size: 14px;
       font-weight: 800;
       color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .btn-stop-video {
+      background: #e74c3c;
+      border: none;
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    /* Upload Area */
+    .upload-box {
+      border: 2px dashed rgba(255, 255, 255, 0.15);
+      border-radius: 18px;
+      padding: 18px;
+      text-align: center;
+      background: rgba(0, 0, 0, 0.25);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .upload-box:active {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--accent);
+    }
+
+    .upload-icon {
+      width: 32px;
+      height: 32px;
+      color: var(--accent-bright);
+    }
+
+    .upload-text {
+      font-size: 14px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .upload-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Upload Progress Bar */
+    .upload-progress-wrap {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 12px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .upload-progress-wrap.active {
+      display: flex;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .progress-track {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent) 0%, var(--accent-bright) 100%);
+      border-radius: 999px;
+      transition: width 0.15s ease;
+    }
+
+    /* Video Playback Options (Mute / Loop) */
+    .playback-options-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .option-pill {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 10px 14px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .option-pill.active {
+      border-color: var(--accent);
+      background: rgba(184, 25, 60, 0.15);
+    }
+
+    .option-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Video Library List */
+    .video-list-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 4px;
+    }
+
+    .section-mini-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #fff;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .video-items-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 280px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+
+    .video-item-card {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .video-item-card.is-active {
+      border-color: var(--green);
+      background: rgba(46, 204, 113, 0.1);
+    }
+
+    .video-item-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow: hidden;
+    }
+
+    .video-item-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .video-item-size {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .video-item-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-play-item {
+      background: var(--green);
+      color: #000;
+      border: none;
+      padding: 7px 14px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-delete-item {
+      background: rgba(255, 255, 255, 0.08);
+      color: #e74c3c;
+      border: none;
+      padding: 7px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .empty-videos-msg {
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      padding: 16px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 14px;
+    }
+
+    /* Drive / URL Direct Input Box */
+    .link-input-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    .custom-url-input {
+      flex: 1;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 10px 14px;
+      color: #fff;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .custom-url-input:focus {
+      border-color: var(--accent);
+    }
+
+    .btn-play-url {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+      white-space: nowrap;
     }
 
     /* Actions Grid */
     .actions-grid {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 12px;
+      gap: 10px;
     }
 
     .action-btn {
       background: rgba(255, 255, 255, 0.06);
       border: 1px solid rgba(255, 255, 255, 0.1);
-      padding: 16px;
-      border-radius: 16px;
+      padding: 14px;
+      border-radius: 14px;
       color: #fff;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
       cursor: pointer;
       display: flex;
@@ -377,9 +676,9 @@
           <div class="brand-subtitle">LIVE BROADCAST CONSOLE</div>
         </div>
       </div>
-      <div class="status-badge" id="supabaseStatusBadge">
+      <div class="status-badge" id="connectionStatusBadge">
         <span class="status-dot"></span>
-        <span id="supabaseStatusText">CONNECTED</span>
+        <span id="connectionStatusText">CONNECTED</span>
       </div>
     </header>
 
@@ -391,7 +690,6 @@
           TV Screen Blackout
         </h2>
       </div>
-      <p class="card-desc">Instantly turn the TV display screen pitch black (Standby / Blackout), or restore the live standings broadcast.</p>
 
       <button class="blackout-toggle-btn" id="btnToggleBlackout">
         <div class="btn-text-group">
@@ -409,7 +707,89 @@
       </div>
     </section>
 
-    <!-- ADDITIONAL CONTROLS -->
+    <!-- ==========================================================================
+         LOCAL WIRELESS VIDEO BROADCAST SECTION
+         ========================================================================== -->
+    <section class="control-card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px;"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          TV Video Broadcast
+        </h2>
+      </div>
+      <p class="card-desc">Upload videos wirelessly from your phone directly to the TV with 100% zero buffering and 60 FPS hardware playback.</p>
+
+      <!-- Now Playing Active Banner -->
+      <div class="now-playing-banner" id="nowPlayingBanner">
+        <div class="np-info">
+          <span class="np-tag">▶ NOW PLAYING ON TV</span>
+          <span class="np-title" id="nowPlayingTitle">promo.mp4</span>
+        </div>
+        <button class="btn-stop-video" id="btnStopVideo">
+          <svg viewBox="0 0 24 24" fill="currentColor" style="width: 14px; height: 14px;"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+          STOP VIDEO
+        </button>
+      </div>
+
+      <!-- Wireless Video Upload Button & File Input -->
+      <input type="file" id="videoFileInput" accept="video/mp4,video/webm,video/quicktime,video/mkv" style="display: none;" />
+      <div class="upload-box" id="btnTriggerUpload">
+        <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span class="upload-text">Upload Video from Mobile</span>
+        <span class="upload-sub">Transfers over WiFi directly to Pi storage in seconds</span>
+      </div>
+
+      <!-- Upload Progress Indicator -->
+      <div class="upload-progress-wrap" id="uploadProgressWrap">
+        <div class="progress-header">
+          <span id="uploadProgressText">Uploading to Raspberry Pi...</span>
+          <span id="uploadProgressPercent">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="uploadProgressFill"></div>
+        </div>
+      </div>
+
+      <!-- Playback Options (Mute & Loop switches) -->
+      <div class="playback-options-grid">
+        <div class="option-pill" id="btnToggleMute">
+          <span class="option-label">
+            <svg id="muteIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            <span id="muteLabel">Sound: ON</span>
+          </span>
+          <span style="font-size: 12px; font-weight: 800; color: var(--green);" id="muteStateIndicator">UNMUTED</span>
+        </div>
+
+        <div class="option-pill active" id="btnToggleLoop">
+          <span class="option-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+            <span>Loop Video</span>
+          </span>
+          <span style="font-size: 12px; font-weight: 800; color: var(--accent-bright);" id="loopStateIndicator">ON</span>
+        </div>
+      </div>
+
+      <!-- Video Library on Pi -->
+      <div class="video-list-header">
+        <span class="section-mini-title">Videos on TV Storage</span>
+        <button id="btnRefreshVideos" style="background: none; border: none; color: var(--accent-bright); font-size: 12px; font-weight: 700; cursor: pointer;">Refresh List</button>
+      </div>
+
+      <div class="video-items-container" id="videoItemsContainer">
+        <div class="empty-videos-msg">Loading local videos...</div>
+      </div>
+
+      <!-- Or Paste Google Drive / MP4 Link -->
+      <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
+        <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Or Stream from Google Drive / URL:</span>
+        <div class="link-input-group">
+          <input type="text" id="customVideoUrlInput" class="custom-url-input" placeholder="Paste Drive link or MP4 URL..." />
+          <button class="btn-play-url" id="btnPlayCustomUrl">▶ PLAY</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- QUICK ACTIONS -->
     <section class="control-card">
       <div class="card-header">
         <h2 class="card-title">
@@ -442,6 +822,10 @@
       constructor() {
         this.supabase = null;
         this.isBlankScreen = false;
+        this.isVideoMuted = false;
+        this.isVideoLoop = true;
+        this.activeVideoUrl = null;
+        this.activeVideoFilename = null;
 
         this.dom = {
           pinLockModal: document.getElementById('pinLockModal'),
@@ -453,9 +837,29 @@
           blackoutSubLabel: document.getElementById('blackoutSubLabel'),
           currentTvStateText: document.getElementById('currentTvStateText'),
           btnForceRefreshTv: document.getElementById('btnForceRefreshTv'),
-          supabaseStatusBadge: document.getElementById('supabaseStatusBadge'),
-          supabaseStatusText: document.getElementById('supabaseStatusText'),
-          adminToast: document.getElementById('adminToast')
+          connectionStatusBadge: document.getElementById('connectionStatusBadge'),
+          connectionStatusText: document.getElementById('connectionStatusText'),
+          adminToast: document.getElementById('adminToast'),
+
+          // Video Broadcast DOM
+          nowPlayingBanner: document.getElementById('nowPlayingBanner'),
+          nowPlayingTitle: document.getElementById('nowPlayingTitle'),
+          btnStopVideo: document.getElementById('btnStopVideo'),
+          btnTriggerUpload: document.getElementById('btnTriggerUpload'),
+          videoFileInput: document.getElementById('videoFileInput'),
+          uploadProgressWrap: document.getElementById('uploadProgressWrap'),
+          uploadProgressFill: document.getElementById('uploadProgressFill'),
+          uploadProgressText: document.getElementById('uploadProgressText'),
+          uploadProgressPercent: document.getElementById('uploadProgressPercent'),
+          btnToggleMute: document.getElementById('btnToggleMute'),
+          muteLabel: document.getElementById('muteLabel'),
+          muteStateIndicator: document.getElementById('muteStateIndicator'),
+          btnToggleLoop: document.getElementById('btnToggleLoop'),
+          loopStateIndicator: document.getElementById('loopStateIndicator'),
+          btnRefreshVideos: document.getElementById('btnRefreshVideos'),
+          videoItemsContainer: document.getElementById('videoItemsContainer'),
+          customVideoUrlInput: document.getElementById('customVideoUrlInput'),
+          btnPlayCustomUrl: document.getElementById('btnPlayCustomUrl')
         };
 
         this.init();
@@ -465,6 +869,8 @@
         this.checkAuth();
         this.initSupabase();
         this.initListeners();
+        this.fetchLocalVideos();
+        this.startStateSyncPoller();
       }
 
       checkAuth() {
@@ -506,16 +912,25 @@
           }
         } catch (e) {
           console.error('Supabase init error:', e);
-          this.dom.supabaseStatusBadge.classList.add('offline');
-          this.dom.supabaseStatusText.textContent = 'OFFLINE';
         }
       }
 
       async fetchCurrentState() {
-        if (!this.supabase) return;
-
+        // Try local server API first (for 100% offline local venue operation)
         try {
-          const { data, error } = await this.supabase
+          const res = await fetch('/api/tv-state', { cache: 'no-store' });
+          if (res.ok) {
+            const state = await res.json();
+            this.applyState(state);
+            this.setConnectedStatus(true, 'LOCAL WIFI');
+            return;
+          }
+        } catch (e) {}
+
+        // Fallback to Supabase Cloud
+        if (!this.supabase) return;
+        try {
+          const { data } = await this.supabase
             .from('app_settings')
             .select('value')
             .eq('key', 'tv_remote_control')
@@ -523,13 +938,9 @@
 
           if (data?.value) {
             const state = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
-            this.updateUiState(Boolean(state.blank_screen));
-          } else {
-            this.updateUiState(false);
+            this.applyState(state);
           }
-        } catch (e) {
-          console.warn('Error fetching remote control state:', e);
-        }
+        } catch (e) {}
       }
 
       subscribeRealtime() {
@@ -541,81 +952,243 @@
             if (payload?.new?.key === 'tv_remote_control') {
               try {
                 const state = typeof payload.new.value === 'string' ? JSON.parse(payload.new.value) : payload.new.value;
-                this.updateUiState(Boolean(state.blank_screen));
+                this.applyState(state);
               } catch (e) {}
             }
           })
           .subscribe((status) => {
             if (status === 'SUBSCRIBED') {
-              this.dom.supabaseStatusBadge.classList.remove('offline');
-              this.dom.supabaseStatusText.textContent = 'CONNECTED';
+              this.setConnectedStatus(true, 'CONNECTED');
             } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-              this.dom.supabaseStatusBadge.classList.add('offline');
-              this.dom.supabaseStatusText.textContent = 'RECONNECTING';
+              this.setConnectedStatus(false, 'OFFLINE');
             }
           });
       }
 
+      startStateSyncPoller() {
+        setInterval(async () => {
+          try {
+            const res = await fetch('/api/tv-state', { cache: 'no-store' });
+            if (res.ok) {
+              const state = await res.json();
+              this.applyState(state);
+              this.setConnectedStatus(true, 'PI CONNECTED');
+            }
+          } catch (e) {}
+        }, 3000);
+      }
+
+      setConnectedStatus(isOnline, text) {
+        if (isOnline) {
+          this.dom.connectionStatusBadge.classList.remove('offline');
+          this.dom.connectionStatusText.textContent = text || 'CONNECTED';
+        } else {
+          this.dom.connectionStatusBadge.classList.add('offline');
+          this.dom.connectionStatusText.textContent = text || 'OFFLINE';
+        }
+      }
+
+      applyState(state) {
+        if (!state) return;
+
+        // 1. Blackout state
+        this.updateBlackoutUi(Boolean(state.blank_screen));
+
+        // 2. Video Broadcast state
+        const vm = state.video_mode;
+        if (vm && vm.active && vm.url) {
+          this.activeVideoUrl = vm.url;
+          this.activeVideoFilename = vm.filename || vm.url.split('/').pop() || 'Video';
+          this.dom.nowPlayingBanner.classList.add('active');
+          this.dom.nowPlayingTitle.textContent = this.activeVideoFilename;
+        } else {
+          this.activeVideoUrl = null;
+          this.activeVideoFilename = null;
+          this.dom.nowPlayingBanner.classList.remove('active');
+        }
+
+        this.highlightActiveVideoInList();
+      }
+
       initListeners() {
+        // Blackout Toggle
         this.dom.btnToggleBlackout.addEventListener('click', () => {
           if (navigator.vibrate) navigator.vibrate(30);
           this.toggleBlackout();
         });
 
+        // Force Refresh TV
         this.dom.btnForceRefreshTv.addEventListener('click', () => {
           if (navigator.vibrate) navigator.vibrate(30);
           this.forceRefreshTv();
+        });
+
+        // Video Upload Trigger
+        this.dom.btnTriggerUpload.addEventListener('click', () => {
+          this.dom.videoFileInput.click();
+        });
+
+        this.dom.videoFileInput.addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (file) this.uploadVideoFile(file);
+        });
+
+        // Stop Video
+        this.dom.btnStopVideo.addEventListener('click', () => {
+          if (navigator.vibrate) navigator.vibrate(30);
+          this.stopTvVideo();
+        });
+
+        // Mute / Unmute
+        this.dom.btnToggleMute.addEventListener('click', () => {
+          this.isVideoMuted = !this.isVideoMuted;
+          this.dom.btnToggleMute.classList.toggle('active', !this.isVideoMuted);
+          this.dom.muteLabel.textContent = this.isVideoMuted ? 'Sound: MUTED' : 'Sound: ON';
+          this.dom.muteStateIndicator.textContent = this.isVideoMuted ? 'MUTED' : 'UNMUTED';
+          this.dom.muteStateIndicator.style.color = this.isVideoMuted ? '#e74c3c' : 'var(--green)';
+
+          if (this.activeVideoUrl) {
+            this.sendTvStateUpdate({
+              video_mode: {
+                active: true,
+                url: this.activeVideoUrl,
+                filename: this.activeVideoFilename,
+                muted: this.isVideoMuted,
+                loop: this.isVideoLoop
+              }
+            });
+          }
+        });
+
+        // Loop Toggle
+        this.dom.btnToggleLoop.addEventListener('click', () => {
+          this.isVideoLoop = !this.isVideoLoop;
+          this.dom.btnToggleLoop.classList.toggle('active', this.isVideoLoop);
+          this.dom.loopStateIndicator.textContent = this.isVideoLoop ? 'ON' : 'OFF';
+          this.dom.loopStateIndicator.style.color = this.isVideoLoop ? 'var(--accent-bright)' : 'var(--text-muted)';
+
+          if (this.activeVideoUrl) {
+            this.sendTvStateUpdate({
+              video_mode: {
+                active: true,
+                url: this.activeVideoUrl,
+                filename: this.activeVideoFilename,
+                muted: this.isVideoMuted,
+                loop: this.isVideoLoop
+              }
+            });
+          }
+        });
+
+        // Refresh Video List
+        this.dom.btnRefreshVideos.addEventListener('click', () => {
+          this.fetchLocalVideos();
+        });
+
+        // Play Custom URL
+        this.dom.btnPlayCustomUrl.addEventListener('click', () => {
+          const url = this.dom.customVideoUrlInput.value.trim();
+          if (!url) {
+            this.showToast('Please enter a video URL or Drive link');
+            return;
+          }
+          const filename = url.includes('drive.google.com') ? 'Google Drive Stream' : url.split('/').pop() || 'Live Video';
+          this.playTvVideo(url, filename);
         });
       }
 
       async toggleBlackout() {
         const nextState = !this.isBlankScreen;
-        this.updateUiState(nextState);
+        this.updateBlackoutUi(nextState);
 
+        await this.sendTvStateUpdate({
+          blank_screen: nextState
+        });
+
+        this.showToast(nextState ? '⚫ TV Screen Blacked Out' : '🟢 TV Screen Restored to Live');
+      }
+
+      async playTvVideo(url, filename) {
+        if (navigator.vibrate) navigator.vibrate(30);
+
+        this.activeVideoUrl = url;
+        this.activeVideoFilename = filename;
+
+        this.dom.nowPlayingBanner.classList.add('active');
+        this.dom.nowPlayingTitle.textContent = filename;
+        this.highlightActiveVideoInList();
+
+        await this.sendTvStateUpdate({
+          video_mode: {
+            active: true,
+            url: url,
+            filename: filename,
+            muted: this.isVideoMuted,
+            loop: this.isVideoLoop
+          }
+        });
+
+        this.showToast(`▶ Playing on TV: ${filename}`);
+      }
+
+      async stopTvVideo() {
+        this.activeVideoUrl = null;
+        this.activeVideoFilename = null;
+        this.dom.nowPlayingBanner.classList.remove('active');
+        this.highlightActiveVideoInList();
+
+        await this.sendTvStateUpdate({
+          video_mode: {
+            active: false,
+            url: '',
+            filename: ''
+          }
+        });
+
+        this.showToast('⏹️ TV Video Stopped (Returned to Standings)');
+      }
+
+      async sendTvStateUpdate(partialState) {
+        const payload = {
+          blank_screen: this.isBlankScreen,
+          ...partialState,
+          updated_at: Date.now()
+        };
+
+        // 1. Send to Local Pi Server (0ms Local WiFi Transfer)
         try {
-          const payload = {
-            blank_screen: nextState,
-            updated_at: Date.now()
-          };
+          await fetch('/api/tv-state', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        } catch (e) {}
 
-          const { error } = await this.supabase
-            .from('app_settings')
-            .upsert({
-              key: 'tv_remote_control',
-              value: JSON.stringify(payload)
-            }, { onConflict: 'key' });
-
-          if (error) throw error;
-
-          this.showToast(nextState ? '⚫ TV Screen Blacked Out' : '🟢 TV Screen Restored to Live');
-        } catch (e) {
-          console.error('Failed to update remote blackout state:', e);
-          this.showToast('⚠️ Update failed, check connection');
-          this.updateUiState(!nextState); // rollback
+        // 2. Sync to Supabase Cloud
+        if (this.supabase) {
+          try {
+            await this.supabase
+              .from('app_settings')
+              .upsert({
+                key: 'tv_remote_control',
+                value: JSON.stringify(payload)
+              }, { onConflict: 'key' });
+          } catch (e) {}
         }
       }
 
       async forceRefreshTv() {
         try {
-          const payload = {
-            force_refresh: Date.now(),
-            blank_screen: this.isBlankScreen
-          };
-
-          await this.supabase
-            .from('app_settings')
-            .upsert({
-              key: 'tv_remote_control',
-              value: JSON.stringify(payload)
-            }, { onConflict: 'key' });
-
+          await this.sendTvStateUpdate({
+            force_refresh: Date.now()
+          });
           this.showToast('🔄 TV Standings Roll Triggered!');
         } catch (e) {
           this.showToast('Failed to trigger TV refresh');
         }
       }
 
-      updateUiState(isBlank) {
+      updateBlackoutUi(isBlank) {
         this.isBlankScreen = isBlank;
 
         if (isBlank) {
@@ -633,12 +1206,136 @@
         }
       }
 
+      // --------------------------------------------------------------------------
+      // WIRELESS VIDEO UPLOAD ENGINE
+      // --------------------------------------------------------------------------
+      uploadVideoFile(file) {
+        if (!file) return;
+
+        this.dom.uploadProgressWrap.classList.add('active');
+        this.dom.uploadProgressText.textContent = `Uploading ${file.name}...`;
+        this.dom.uploadProgressPercent.textContent = '0%';
+        this.dom.uploadProgressFill.style.width = '0%';
+
+        const xhr = new XMLHttpRequest();
+        const uploadUrl = `/api/upload-video?filename=${encodeURIComponent(file.name)}`;
+
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            const loadedMB = (e.loaded / (1024 * 1024)).toFixed(1);
+            const totalMB = (e.total / (1024 * 1024)).toFixed(1);
+            this.dom.uploadProgressFill.style.width = `${percent}%`;
+            this.dom.uploadProgressPercent.textContent = `${percent}%`;
+            this.dom.uploadProgressText.textContent = `Uploading: ${loadedMB} / ${totalMB} MB`;
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          this.dom.uploadProgressWrap.classList.remove('active');
+          if (xhr.status === 200) {
+            this.showToast(`✅ Video saved to Pi: ${file.name}`);
+            this.fetchLocalVideos();
+            if (navigator.vibrate) navigator.vibrate([40, 80, 40]);
+          } else {
+            this.showToast('❌ Upload failed, check WiFi connection');
+          }
+          this.dom.videoFileInput.value = '';
+        });
+
+        xhr.addEventListener('error', () => {
+          this.dom.uploadProgressWrap.classList.remove('active');
+          this.showToast('❌ Upload error over local network');
+          this.dom.videoFileInput.value = '';
+        });
+
+        xhr.open('POST', uploadUrl, true);
+        xhr.send(file);
+      }
+
+      async fetchLocalVideos() {
+        try {
+          const res = await fetch('/api/videos', { cache: 'no-store' });
+          if (!res.ok) throw new Error('Cannot fetch video list');
+          const videos = await res.json();
+          this.renderVideoList(videos);
+        } catch (e) {
+          this.dom.videoItemsContainer.innerHTML = `
+            <div class="empty-videos-msg">
+              No videos on Pi storage yet.<br>
+              Tap "Upload Video from Mobile" above!
+            </div>
+          `;
+        }
+      }
+
+      renderVideoList(videos) {
+        if (!videos || videos.length === 0) {
+          this.dom.videoItemsContainer.innerHTML = `
+            <div class="empty-videos-msg">
+              No local videos on TV yet.<br>
+              Tap "Upload Video from Mobile" to add one!
+            </div>
+          `;
+          return;
+        }
+
+        this.dom.videoItemsContainer.innerHTML = videos.map(v => {
+          const isActive = this.activeVideoUrl === v.url;
+          return `
+            <div class="video-item-card ${isActive ? 'is-active' : ''}" data-url="${v.url}">
+              <div class="video-item-info">
+                <span class="video-item-name" title="${v.filename}">${v.filename}</span>
+                <span class="video-item-size">${v.size} • Stored on Pi</span>
+              </div>
+              <div class="video-item-actions">
+                <button class="btn-play-item" onclick="window.tvAdmin.playTvVideo('${v.url}', '${v.filename}')">
+                  ▶ PLAY
+                </button>
+                <button class="btn-delete-item" title="Delete" onclick="window.tvAdmin.deleteVideo('${v.filename}')">
+                  🗑️
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      highlightActiveVideoInList() {
+        const cards = this.dom.videoItemsContainer.querySelectorAll('.video-item-card');
+        cards.forEach(card => {
+          const url = card.getAttribute('data-url');
+          if (this.activeVideoUrl && url === this.activeVideoUrl) {
+            card.classList.add('is-active');
+          } else {
+            card.classList.remove('is-active');
+          }
+        });
+      }
+
+      async deleteVideo(filename) {
+        if (!confirm(`Delete "${filename}" from Raspberry Pi?`)) return;
+
+        try {
+          const res = await fetch(`/api/delete-video?filename=${encodeURIComponent(filename)}`, { method: 'POST' });
+          if (res.ok) {
+            this.showToast(`Deleted ${filename}`);
+            if (this.activeVideoFilename === filename) {
+              this.stopTvVideo();
+            }
+            this.fetchLocalVideos();
+          }
+        } catch (e) {
+          this.showToast('Error deleting video');
+        }
+      }
+
       showToast(msg) {
         this.dom.adminToast.textContent = msg;
         this.dom.adminToast.classList.add('active');
         setTimeout(() => {
           this.dom.adminToast.classList.remove('active');
-        }, 2200);
+        }, 2500);
       }
     }
 

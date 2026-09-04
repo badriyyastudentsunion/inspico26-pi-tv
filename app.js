@@ -106,7 +106,13 @@ class TvApp {
       dashboardPosterImg: document.getElementById('dashboardPosterImg'),
 
       // Remote Blackout Overlay
-      tvBlackoutOverlay: document.getElementById('tvBlackoutOverlay')
+      tvBlackoutOverlay: document.getElementById('tvBlackoutOverlay'),
+
+      // Remote Video Broadcast Overlay
+      tvVideoOverlay: document.getElementById('tvVideoOverlay'),
+      tvVideoPlayer: document.getElementById('tvVideoPlayer'),
+      tvVideoLoader: document.getElementById('tvVideoLoader'),
+      tvVideoLoaderText: document.getElementById('tvVideoLoaderText')
     }
 
     this.seenPublishedCompIds = new Set()
@@ -115,6 +121,9 @@ class TvApp {
     this.preloadedPosterCache = new Map()
     this.activeMilestonePosterUrl = null
     this.posterRotationTimer = null
+    this.isVideoPlaying = false
+    this.currentPlayingVideoUrl = null
+    this.wasVideoPlayingBeforeAnnouncement = false
 
     this.init()
   }
@@ -123,6 +132,7 @@ class TvApp {
     this.initClock()
     this.initHeaderToggle()
     this.initAutoUpdateChecker()
+    this.initLocalStatePoller()
     this.initSupabase()
     this.initAudio()
     this.initKeyboardControls()
@@ -751,10 +761,131 @@ class TvApp {
   }
 
   handleTvRemoteState(state) {
-    const isBlank = Boolean(state && state.blank_screen)
+    if (!state) return
+
+    // 1. Blackout screen handling
+    const isBlank = Boolean(state.blank_screen)
     if (this.dom.tvBlackoutOverlay) {
       this.dom.tvBlackoutOverlay.classList.toggle('active', isBlank)
     }
+
+    // 2. Full-Screen Remote Video Broadcast handling
+    const videoMode = state.video_mode
+    if (videoMode && videoMode.active && videoMode.url) {
+      this.playRemoteVideo(videoMode)
+    } else {
+      this.stopRemoteVideo()
+    }
+  }
+
+  playRemoteVideo(videoMode) {
+    if (!this.dom.tvVideoPlayer || !this.dom.tvVideoOverlay) return
+
+    let targetUrl = (videoMode.url || '').trim()
+
+    // Transform Google Drive Share URLs to direct streaming links automatically
+    if (targetUrl.includes('drive.google.com')) {
+      const match = targetUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || targetUrl.match(/id=([a-zA-Z0-9_-]+)/)
+      if (match && match[1]) {
+        targetUrl = `https://drive.google.com/uc?export=download&id=${match[1]}`
+      }
+    }
+
+    const isLoop = videoMode.loop !== false
+    const isMuted = Boolean(videoMode.muted)
+
+    // If already playing this exact video, just sync mute/loop
+    if (this.isVideoPlaying && this.currentPlayingVideoUrl === targetUrl) {
+      this.dom.tvVideoPlayer.muted = isMuted
+      this.dom.tvVideoPlayer.loop = isLoop
+      return
+    }
+
+    console.log('🎬 Starting Zero-Buffer Video Broadcast on TV:', targetUrl)
+    this.currentPlayingVideoUrl = targetUrl
+
+    const player = this.dom.tvVideoPlayer
+    player.pause()
+    player.src = targetUrl
+    player.muted = isMuted
+    player.loop = isLoop
+    player.currentTime = 0
+
+    // Show Loader until buffered enough to guarantee zero stutter
+    if (this.dom.tvVideoLoader) {
+      this.dom.tvVideoLoader.classList.add('active')
+      if (this.dom.tvVideoLoaderText) {
+        this.dom.tvVideoLoaderText.textContent = 'Buffering Video into Memory...'
+      }
+    }
+
+    player.oncanplay = () => {
+      console.log('✅ Video buffer ready! Launching fullscreen hardware playback...')
+      if (this.dom.tvVideoLoader) {
+        this.dom.tvVideoLoader.classList.remove('active')
+      }
+      this.dom.tvVideoOverlay.classList.add('active')
+      this.isVideoPlaying = true
+
+      // Play with hardware acceleration
+      player.play().catch(err => {
+        console.warn('Auto-play muted fallback triggered:', err)
+        player.muted = true
+        player.play().catch(e => console.error('Video playback failed:', e))
+      })
+    }
+
+    player.onerror = (e) => {
+      console.error('❌ Error playing video:', e)
+      if (this.dom.tvVideoLoader) {
+        this.dom.tvVideoLoader.classList.remove('active')
+      }
+      this.showToast('⚠️ Video playback error, check URL format')
+    }
+
+    player.onended = () => {
+      if (!isLoop) {
+        console.log('🏁 Video finished -> returning to standings')
+        this.stopRemoteVideo()
+      }
+    }
+  }
+
+  stopRemoteVideo() {
+    if (!this.isVideoPlaying && !this.dom.tvVideoOverlay?.classList.contains('active')) return
+
+    console.log('⏹️ Stopping remote video on TV')
+    this.isVideoPlaying = false
+    this.currentPlayingVideoUrl = null
+    this.wasVideoPlayingBeforeAnnouncement = false
+
+    if (this.dom.tvVideoPlayer) {
+      this.dom.tvVideoPlayer.pause()
+      this.dom.tvVideoPlayer.src = ''
+    }
+
+    if (this.dom.tvVideoLoader) {
+      this.dom.tvVideoLoader.classList.remove('active')
+    }
+
+    if (this.dom.tvVideoOverlay) {
+      this.dom.tvVideoOverlay.classList.remove('active')
+    }
+  }
+
+  // 100% Offline Local State Poller (Ensures phone and Pi talk over WiFi with 0 internet)
+  initLocalStatePoller() {
+    setInterval(async () => {
+      try {
+        const res = await fetch('/api/tv-state', { cache: 'no-store' })
+        if (res.ok) {
+          const state = await res.json()
+          this.handleTvRemoteState(state)
+        }
+      } catch (e) {
+        // Silent on static hosts like GitHub Pages
+      }
+    }, 2000)
   }
 
   // --------------------------------------------------------------------------
@@ -983,6 +1114,12 @@ class TvApp {
       this.dom.announcementPodiumGrid.innerHTML = podiumHtml
     }
 
+    // Pause video if currently playing on TV during breaking result announcement
+    if (this.isVideoPlaying && this.dom.tvVideoPlayer && !this.dom.tvVideoPlayer.paused) {
+      this.dom.tvVideoPlayer.pause()
+      this.wasVideoPlayingBeforeAnnouncement = true
+    }
+
     // Show Overlay
     this.dom.resultAnnouncementOverlay.classList.add('active')
 
@@ -1028,6 +1165,13 @@ class TvApp {
     }
 
     this.isAnnouncementActive = false
+
+    // Resume video playback if video was active prior to announcement
+    if (this.wasVideoPlayingBeforeAnnouncement && this.isVideoPlaying && this.dom.tvVideoPlayer) {
+      console.log('▶️ Resuming video playback after result announcements completed')
+      this.dom.tvVideoPlayer.play().catch(() => {})
+      this.wasVideoPlayingBeforeAnnouncement = false
+    }
 
     // Refresh standings & replay points roll with newly published points
     this.fetchDashboardPoints()

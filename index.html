@@ -242,6 +242,17 @@
       </div>
     </div>
 
+    <!-- ============================================================== -->
+    <!-- REMOTE TV FULL SCREEN VIDEO BROADCAST OVERLAY -->
+    <!-- ============================================================== -->
+    <div class="tv-video-overlay" id="tvVideoOverlay">
+      <video id="tvVideoPlayer" class="tv-video-player" playsinline preload="auto"></video>
+      <div class="tv-video-loader" id="tvVideoLoader">
+        <div class="loading-spinner-ring"></div>
+        <span id="tvVideoLoaderText">Preloading Video into RAM...</span>
+      </div>
+    </div>
+
   </div>
 
   <!-- External Supabase SDK (Loaded synchronously to avoid duplicate async init) -->
