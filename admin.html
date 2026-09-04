@@ -1566,8 +1566,24 @@
       }
 
       async sendTvStateUpdate(partialState) {
+        this.lastUserActionTime = Date.now();
         const payload = {
           blank_screen: this.isBlankScreen,
+          slideshow_mode: {
+            active: this.isSlideshowActive,
+            speed: this.slideshowSpeed
+          },
+          video_mode: this.activeVideoUrl ? {
+            active: true,
+            url: this.activeVideoUrl,
+            filename: this.activeVideoFilename,
+            muted: this.isVideoMuted,
+            loop: this.isVideoLoop
+          } : {
+            active: false,
+            url: '',
+            filename: ''
+          },
           ...partialState,
           updated_at: Date.now()
         };
