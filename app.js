@@ -341,25 +341,6 @@ class TvApp {
         }
       })
 
-      if (rpcData) {
-        overallTotalPoints = Object.values(teamMap).reduce((sum, t) => sum + t.totalPoints, 0)
-      }
-
-      // Sort Teams: Total Points (Desc), then Placement Points, then Golds
-      const sortedTeams = Object.values(teamMap).sort((a, b) => {
-        if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints
-        if (b.placementPoints !== a.placementPoints) return b.placementPoints - a.placementPoints
-        return b.goldCount - a.goldCount
-      })
-
-      // Check if data / milestone actually changed
-      const pointsSignature = sortedTeams.map(t => `${t.id}:${t.totalPoints}`).join('|') + `|m:${revealedMilestone}`
-      const hasChanged = this.lastPointsSignature !== pointsSignature
-
-      this.lastPointsSignature = pointsSignature
-      this.dashboardPointsData = sortedTeams
-      this.revealedMilestone = revealedMilestone
-
       // Update Header with exact Milestone text (e.g. STATUS AFTER 40 RESULTS or FINAL STATUS)
       // ONLY show FINAL STATUS when the final milestone divider is EXPLICITLY published/revealed by admin!
       // NEVER show it prematurely just because all individual competitions are published.
@@ -371,6 +352,47 @@ class TvApp {
         )
       )
       this.isAllResultsPublished = isAllResultsPublished
+
+      // Apply Team Bonus & Penalty Adjustments (from app_settings 'team_point_adjustments')
+      // Exactly matches Art Gallery V1 LandingPage.jsx:1178-1191 & :1552-1560
+      if (isAllResultsPublished) {
+        const adjSetting = settings.find(s => s.key === 'team_point_adjustments')
+        let adjMap = {}
+        if (adjSetting?.value) {
+          try {
+            adjMap = typeof adjSetting.value === 'string' ? JSON.parse(adjSetting.value) : adjSetting.value
+          } catch (e) {
+            console.error('Failed to parse team_point_adjustments:', e)
+          }
+        }
+        Object.keys(teamMap).forEach(tId => {
+          const raw = adjMap[tId]
+          const net = typeof raw === 'number'
+            ? raw
+            : ((Number(raw?.bonus) || 0) - (Number(raw?.minus) || 0))
+          teamMap[tId].totalPoints += net
+          teamMap[tId].adjustmentNet = net
+          teamMap[tId].bonusPoints = typeof raw === 'object' ? (Number(raw?.bonus) || 0) : (net > 0 ? net : 0)
+          teamMap[tId].minusPoints = typeof raw === 'object' ? (Number(raw?.minus) || 0) : (net < 0 ? Math.abs(net) : 0)
+        })
+      }
+
+      overallTotalPoints = Object.values(teamMap).reduce((sum, t) => sum + (t.totalPoints || 0), 0)
+
+      // Sort Teams: Total Points (Desc), then Placement Points, then 1st Places (p1)
+      const sortedTeams = Object.values(teamMap).sort((a, b) => {
+        if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints
+        if (b.placementPoints !== a.placementPoints) return b.placementPoints - a.placementPoints
+        return (b.p1 || 0) - (a.p1 || 0)
+      })
+
+      // Check if data / milestone actually changed
+      const pointsSignature = sortedTeams.map(t => `${t.id}:${t.totalPoints}`).join('|') + `|m:${revealedMilestone}`
+      const hasChanged = this.lastPointsSignature !== pointsSignature
+
+      this.lastPointsSignature = pointsSignature
+      this.dashboardPointsData = sortedTeams
+      this.revealedMilestone = revealedMilestone
 
       const headingEl = document.getElementById('dashboardMilestoneTitle') || document.querySelector('.broadcast-main-heading')
       if (headingEl) {
@@ -522,6 +544,11 @@ class TvApp {
           <div class="team-score-block">
             <div class="score-points-number" id="pts-count-${team.id}" data-val="${team.totalPoints}">0</div>
             <div class="score-unit-text">POINTS</div>
+            ${this.isAllResultsPublished && team.adjustmentNet ? `
+              <div class="team-bonus-tag" style="font-size: 13px; font-weight: 700; color: ${team.adjustmentNet >= 0 ? '#2ed573' : '#ff4757'}; letter-spacing: 0.5px; margin-top: 4px;">
+                (INCL. ${team.adjustmentNet >= 0 ? '+' : ''}${team.adjustmentNet} BONUS)
+              </div>
+            ` : ''}
 
             <div class="team-progress-bar-wrap">
               <div class="team-progress-bar-fill" id="bar-fill-${team.id}" style="width: 0%; background: ${team.color};"></div>
