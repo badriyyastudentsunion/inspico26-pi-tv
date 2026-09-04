@@ -111,6 +111,7 @@ class TvApp {
       // Remote Video Broadcast Overlay
       tvVideoOverlay: document.getElementById('tvVideoOverlay'),
       tvVideoPlayer: document.getElementById('tvVideoPlayer'),
+      tvYoutubePlayer: document.getElementById('tvYoutubePlayer'),
       tvVideoLoader: document.getElementById('tvVideoLoader'),
       tvVideoLoaderText: document.getElementById('tvVideoLoaderText'),
 
@@ -127,8 +128,12 @@ class TvApp {
     this.activeMilestonePosterUrl = null
     this.posterRotationTimer = null
     this.isVideoPlaying = false
+    this.isYoutubePlaying = false
     this.currentPlayingVideoUrl = null
+    this.currentBlobUrl = null
+    this.currentPreloadAbortCtrl = null
     this.wasVideoPlayingBeforeAnnouncement = false
+    this.wasYoutubePlayingBeforeAnnouncement = false
 
     // Slideshow state
     this.isSlideshowActive = false
@@ -835,10 +840,106 @@ class TvApp {
     }
   }
 
-  playRemoteVideo(videoMode) {
-    if (!this.dom.tvVideoPlayer || !this.dom.tvVideoOverlay) return
+  extractYoutubeId(url) {
+    if (!url) return null
+    const cleanUrl = url.trim()
+    const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/i
+    const match = cleanUrl.match(regExp)
+    return match ? match[1] : null
+  }
+
+  async preloadFullVideoBlob(url, onProgress, abortSignal) {
+    try {
+      const res = await fetch(url, { signal: abortSignal })
+      if (!res.ok) throw new Error(`HTTP error ${res.status}`)
+
+      const contentLength = res.headers.get('content-length')
+      const total = contentLength ? parseInt(contentLength, 10) : 0
+
+      if (!res.body || total === 0) {
+        const blob = await res.blob()
+        return URL.createObjectURL(blob)
+      }
+
+      const reader = res.body.getReader()
+      let receivedLength = 0
+      const chunks = []
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(value)
+        receivedLength += value.length
+        if (total > 0 && typeof onProgress === 'function') {
+          const percent = Math.min(Math.round((receivedLength / total) * 100), 100)
+          onProgress(percent)
+        }
+      }
+
+      const fullBlob = new Blob(chunks, { type: res.headers.get('content-type') || 'video/mp4' })
+      return URL.createObjectURL(fullBlob)
+    } catch (e) {
+      if (e.name === 'AbortError') throw e
+      console.warn('Full RAM blob preload fallback to direct stream:', e)
+      return url
+    }
+  }
+
+  async playRemoteVideo(videoMode) {
+    if (!this.dom.tvVideoOverlay) return
 
     let targetUrl = (videoMode.url || '').trim()
+    if (!targetUrl) return
+
+    const isLoop = videoMode.loop !== false
+    const isMuted = Boolean(videoMode.muted)
+
+    // 1. YouTube Video Embed (Full 1080p, Autoplay, Loop, Clean Chrome)
+    const ytId = this.extractYoutubeId(targetUrl)
+
+    if (ytId) {
+      console.log('🎬 Launching Fullscreen 1080p YouTube Broadcast on TV, Video ID:', ytId)
+
+      // Stop native HTML5 video player
+      if (this.dom.tvVideoPlayer) {
+        try {
+          this.dom.tvVideoPlayer.pause()
+          this.dom.tvVideoPlayer.removeAttribute('src')
+          this.dom.tvVideoPlayer.load()
+          this.dom.tvVideoPlayer.style.display = 'none'
+        } catch (e) {}
+      }
+
+      if (this.dom.tvVideoLoader) {
+        this.dom.tvVideoLoader.classList.remove('active')
+      }
+
+      if (this.dom.tvYoutubePlayer) {
+        const ytEmbedUrl = `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=${isMuted ? 1 : 0}&loop=${isLoop ? 1 : 0}&playlist=${ytId}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&vq=hd1080&enablejsapi=1`
+        this.dom.tvYoutubePlayer.src = ytEmbedUrl
+        this.dom.tvYoutubePlayer.style.display = 'block'
+        this.dom.tvYoutubePlayer.classList.add('active')
+      }
+
+      this.dom.tvVideoOverlay.classList.add('active')
+      this.isVideoPlaying = true
+      this.isYoutubePlaying = true
+      this.currentPlayingVideoUrl = targetUrl
+      return
+    }
+
+    // 2. Direct MP4 / Local Pi Storage Video / Google Drive Stream
+    if (this.dom.tvYoutubePlayer) {
+      try {
+        this.dom.tvYoutubePlayer.src = ''
+        this.dom.tvYoutubePlayer.style.display = 'none'
+        this.dom.tvYoutubePlayer.classList.remove('active')
+      } catch (e) {}
+    }
+    this.isYoutubePlaying = false
+
+    if (!this.dom.tvVideoPlayer) return
+    this.dom.tvVideoPlayer.style.display = 'block'
 
     // Transform Google Drive Share URLs to direct streaming links automatically
     if (targetUrl.includes('drive.google.com')) {
@@ -848,9 +949,6 @@ class TvApp {
       }
     }
 
-    const isLoop = videoMode.loop !== false
-    const isMuted = Boolean(videoMode.muted)
-
     // If already playing this exact video, just sync mute/loop
     if (this.isVideoPlaying && this.currentPlayingVideoUrl === targetUrl) {
       this.dom.tvVideoPlayer.muted = isMuted
@@ -858,33 +956,65 @@ class TvApp {
       return
     }
 
-    console.log('🎬 Starting Zero-Buffer Video Broadcast on TV:', targetUrl)
+    console.log('🎬 Starting Full Quality Video Broadcast on TV:', targetUrl)
     this.currentPlayingVideoUrl = targetUrl
+
+    // Abort previous preload if active
+    if (this.currentPreloadAbortCtrl) {
+      try { this.currentPreloadAbortCtrl.abort() } catch (e) {}
+      this.currentPreloadAbortCtrl = null
+    }
+
+    // Revoke previous blob if any
+    if (this.currentBlobUrl) {
+      try { URL.revokeObjectURL(this.currentBlobUrl) } catch (e) {}
+      this.currentBlobUrl = null
+    }
 
     const player = this.dom.tvVideoPlayer
     player.pause()
-    player.src = targetUrl
     player.muted = isMuted
     player.loop = isLoop
-    player.currentTime = 0
 
-    // Show Loader until buffered enough to guarantee zero stutter
+    // Show Loader with progress
     if (this.dom.tvVideoLoader) {
       this.dom.tvVideoLoader.classList.add('active')
       if (this.dom.tvVideoLoaderText) {
-        this.dom.tvVideoLoaderText.textContent = 'Buffering Video into Memory...'
+        this.dom.tvVideoLoaderText.textContent = 'Buffering 100% Full Quality Video into RAM...'
       }
     }
 
+    // Full memory preload for local or direct MP4 so it NEVER buffers
+    this.currentPreloadAbortCtrl = new AbortController()
+    let playableSrc = targetUrl
+
+    try {
+      playableSrc = await this.preloadFullVideoBlob(targetUrl, (percent) => {
+        if (this.dom.tvVideoLoaderText) {
+          this.dom.tvVideoLoaderText.textContent = `Preloading 1080p Video: ${percent}%`
+        }
+      }, this.currentPreloadAbortCtrl.signal)
+
+      if (playableSrc.startsWith('blob:')) {
+        this.currentBlobUrl = playableSrc
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') return
+      console.warn('Preload fallback to native stream:', err)
+      playableSrc = targetUrl
+    }
+
+    player.src = playableSrc
+    player.currentTime = 0
+
     player.oncanplay = () => {
-      console.log('✅ Video buffer ready! Launching fullscreen hardware playback...')
+      console.log('✅ Video buffer 100% ready! Launching fullscreen hardware playback...')
       if (this.dom.tvVideoLoader) {
         this.dom.tvVideoLoader.classList.remove('active')
       }
       this.dom.tvVideoOverlay.classList.add('active')
       this.isVideoPlaying = true
 
-      // Play with hardware acceleration
       player.play().catch(err => {
         console.warn('Auto-play muted fallback triggered:', err)
         player.muted = true
@@ -914,18 +1044,45 @@ class TvApp {
   }
 
   stopRemoteVideo() {
+    console.log('⏹️ Instantly stopping TV video broadcast')
     this.isVideoPlaying = false
+    this.isYoutubePlaying = false
     this.currentPlayingVideoUrl = null
     this.wasVideoPlayingBeforeAnnouncement = false
+    this.wasYoutubePlayingBeforeAnnouncement = false
 
+    // 1. Abort any ongoing preload
+    if (this.currentPreloadAbortCtrl) {
+      try { this.currentPreloadAbortCtrl.abort() } catch (e) {}
+      this.currentPreloadAbortCtrl = null
+    }
+
+    // 2. Revoke blob memory
+    if (this.currentBlobUrl) {
+      try { URL.revokeObjectURL(this.currentBlobUrl) } catch (e) {}
+      this.currentBlobUrl = null
+    }
+
+    // 3. Instantly kill YouTube iframe stream
+    if (this.dom.tvYoutubePlayer) {
+      try {
+        this.dom.tvYoutubePlayer.src = ''
+        this.dom.tvYoutubePlayer.style.display = 'none'
+        this.dom.tvYoutubePlayer.classList.remove('active')
+      } catch (e) {}
+    }
+
+    // 4. Instantly kill native HTML5 player
     if (this.dom.tvVideoPlayer) {
       try {
         this.dom.tvVideoPlayer.pause()
         this.dom.tvVideoPlayer.removeAttribute('src')
         this.dom.tvVideoPlayer.load()
+        this.dom.tvVideoPlayer.style.display = 'block'
       } catch (e) {}
     }
 
+    // 5. Hide Loader & Overlay immediately with zero latency
     if (this.dom.tvVideoLoader) {
       this.dom.tvVideoLoader.classList.remove('active')
     }
@@ -1143,6 +1300,7 @@ class TvApp {
                     window.location.hostname.startsWith('10.')
     if (!isLocal) return
 
+    // Ultra-fast 400ms Local State Poller for Instant 0-Lag Remote Control Response
     setInterval(async () => {
       try {
         const res = await fetch('/api/tv-state', { cache: 'no-store' })
@@ -1153,7 +1311,7 @@ class TvApp {
       } catch (e) {
         // Silent
       }
-    }, 2000)
+    }, 400)
   }
 
   // --------------------------------------------------------------------------
@@ -1382,10 +1540,21 @@ class TvApp {
       this.dom.announcementPodiumGrid.innerHTML = podiumHtml
     }
 
-    // Pause video if currently playing on TV during breaking result announcement
-    if (this.isVideoPlaying && this.dom.tvVideoPlayer && !this.dom.tvVideoPlayer.paused) {
-      this.dom.tvVideoPlayer.pause()
-      this.wasVideoPlayingBeforeAnnouncement = true
+    // Pause video / YouTube if currently playing on TV during breaking result announcement
+    if (this.isVideoPlaying) {
+      if (this.isYoutubePlaying && this.dom.tvYoutubePlayer) {
+        try {
+          this.dom.tvYoutubePlayer.contentWindow?.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*')
+        } catch (e) {}
+        this.wasYoutubePlayingBeforeAnnouncement = true
+      }
+      if (this.dom.tvVideoPlayer && !this.dom.tvVideoPlayer.paused) {
+        this.dom.tvVideoPlayer.pause()
+        this.wasVideoPlayingBeforeAnnouncement = true
+      }
+      if (this.dom.tvVideoOverlay) {
+        this.dom.tvVideoOverlay.classList.remove('active')
+      }
     }
 
     // Pause slideshow temporarily during breaking result announcement (preserves current slide position)
@@ -1439,11 +1608,22 @@ class TvApp {
 
     this.isAnnouncementActive = false
 
-    // Resume video playback if video was active prior to announcement
-    if (this.wasVideoPlayingBeforeAnnouncement && this.isVideoPlaying && this.dom.tvVideoPlayer) {
-      console.log('▶️ Resuming video playback after result announcements completed')
-      this.dom.tvVideoPlayer.play().catch(() => {})
-      this.wasVideoPlayingBeforeAnnouncement = false
+    // Resume video / YouTube playback if active prior to announcement
+    if (this.isVideoPlaying) {
+      if (this.wasYoutubePlayingBeforeAnnouncement && this.dom.tvYoutubePlayer) {
+        console.log('▶️ Resuming YouTube playback after result announcements completed')
+        if (this.dom.tvVideoOverlay) this.dom.tvVideoOverlay.classList.add('active')
+        try {
+          this.dom.tvYoutubePlayer.contentWindow?.postMessage('{"event":"command","func":"playVideo","args":""}', '*')
+        } catch (e) {}
+        this.wasYoutubePlayingBeforeAnnouncement = false
+      }
+      if (this.wasVideoPlayingBeforeAnnouncement && this.dom.tvVideoPlayer) {
+        console.log('▶️ Resuming video playback after result announcements completed')
+        if (this.dom.tvVideoOverlay) this.dom.tvVideoOverlay.classList.add('active')
+        this.dom.tvVideoPlayer.play().catch(() => {})
+        this.wasVideoPlayingBeforeAnnouncement = false
+      }
     }
 
     // Resume gallery slideshow smoothly from next remaining photo

@@ -1018,7 +1018,7 @@
               this.setConnectedStatus(true, 'PI CONNECTED');
             }
           } catch (e) {}
-        }, 3000);
+        }, 1000);
       }
 
       setConnectedStatus(isOnline, text) {
@@ -1081,7 +1081,7 @@
           if (file) this.uploadVideoFile(file);
         });
 
-        // Stop Video
+        // Stop Video (Instant Stop)
         this.dom.btnStopVideo.addEventListener('click', () => {
           if (navigator.vibrate) navigator.vibrate(30);
           this.stopTvVideo();
@@ -1133,14 +1133,21 @@
           this.fetchLocalVideos();
         });
 
-        // Play Custom URL
+        // Play Custom URL (YouTube / Drive / MP4)
         this.dom.btnPlayCustomUrl.addEventListener('click', () => {
           const url = this.dom.customVideoUrlInput.value.trim();
           if (!url) {
-            this.showToast('Please enter a video URL or Drive link');
+            this.showToast('Please enter a YouTube link or Video URL');
             return;
           }
-          const filename = url.includes('drive.google.com') ? 'Google Drive Stream' : url.split('/').pop() || 'Live Video';
+          let filename = 'Video';
+          if (url.includes('youtube.com') || url.includes('youtu.be')) {
+            filename = 'YouTube 1080p Stream';
+          } else if (url.includes('drive.google.com')) {
+            filename = 'Google Drive Stream';
+          } else {
+            filename = url.split('/').pop() || 'Live Video';
+          }
           this.playTvVideo(url, filename);
         });
 
@@ -1283,26 +1290,23 @@
           updated_at: Date.now()
         };
 
-        // 1. Send to Local Pi Server (0ms Local WiFi Transfer)
-        try {
-          await fetch('/api/tv-state', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-        } catch (e) {}
+        // Ultra-fast Concurrent Push (Local Wi-Fi + Cloud in parallel)
+        const localPromise = fetch('/api/tv-state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).catch(() => {});
 
-        // 2. Sync to Supabase Cloud
-        if (this.supabase) {
-          try {
-            await this.supabase
-              .from('app_settings')
-              .upsert({
-                key: 'tv_remote_control',
-                value: JSON.stringify(payload)
-              }, { onConflict: 'key' });
-          } catch (e) {}
-        }
+        const cloudPromise = this.supabase ? this.supabase
+          .from('app_settings')
+          .upsert({
+            key: 'tv_remote_control',
+            value: JSON.stringify(payload)
+          }, { onConflict: 'key' })
+          .catch(() => {}) : Promise.resolve();
+
+        // Don't stall UI; respond instantly
+        await Promise.race([localPromise, cloudPromise]);
       }
 
       async forceRefreshTv() {
