@@ -337,10 +337,16 @@ class TvApp {
       this.dashboardPointsData = sortedTeams
       this.revealedMilestone = revealedMilestone
 
-      // Update Header with exact Milestone text (e.g. STATUS AFTER 40 RESULTS)
+      // Update Header with exact Milestone text (e.g. STATUS AFTER 40 RESULTS or FINAL STATUS)
+      const totalCompsCount = Number(compsCountRes?.count) || seqCompIds.length || 0
+      const isAllResultsPublished = (totalCompsCount > 0 && (revealedMilestone >= totalCompsCount || publishedCompIds.size >= totalCompsCount)) || (revealedMilestone >= 135)
+      this.isAllResultsPublished = isAllResultsPublished
+
       const headingEl = document.getElementById('dashboardMilestoneTitle') || document.querySelector('.broadcast-main-heading')
       if (headingEl) {
-        if (revealedMilestone > 0) {
+        if (isAllResultsPublished) {
+          headingEl.textContent = 'FINAL STATUS'
+        } else if (revealedMilestone > 0) {
           headingEl.textContent = `STATUS AFTER ${revealedMilestone} RESULTS`
         } else if (publishedCompIds.size > 0) {
           headingEl.textContent = `STATUS AFTER ${publishedCompIds.size} RESULTS`
@@ -414,9 +420,13 @@ class TvApp {
         this.animateNumber(this.dom.dbTotalPoints, overallTotalPoints)
       }
       if (this.dom.dbPublishedEvents) {
-        this.dom.dbPublishedEvents.textContent = revealedMilestone > 0 
-          ? `${revealedMilestone} Results (Status Point)` 
-          : `${publishedCompIds.size} / ${compsCountRes.count || '--'}`
+        if (isAllResultsPublished) {
+          this.dom.dbPublishedEvents.textContent = `${totalCompsCount || publishedCompIds.size} Results (Final Status)`
+        } else if (revealedMilestone > 0) {
+          this.dom.dbPublishedEvents.textContent = `${revealedMilestone} Results (Status Point)`
+        } else {
+          this.dom.dbPublishedEvents.textContent = `${publishedCompIds.size} / ${compsCountRes.count || '--'}`
+        }
       }
       if (this.dom.dbTotalParticipants && partsCountRes.count !== null) {
         this.dom.dbTotalParticipants.textContent = partsCountRes.count
@@ -776,6 +786,19 @@ class TvApp {
   handleTvRemoteState(state) {
     if (!state) return
 
+    // 0. Remote Hard Refresh / Cache-Busted Reload from Admin Phone
+    if (state.force_refresh) {
+      if (!this.lastHandledForceRefresh) {
+        this.lastHandledForceRefresh = Number(state.force_refresh)
+      } else if (Number(state.force_refresh) > this.lastHandledForceRefresh) {
+        console.log('🔄 Remote Force Hard-Refresh received from phone! Performing full cache-busted reload...')
+        this.lastHandledForceRefresh = Number(state.force_refresh)
+        const cleanUrl = window.location.href.split('?')[0].split('#')[0]
+        window.location.href = `${cleanUrl}?_hardRefresh=${Date.now()}`
+        return
+      }
+    }
+
     // 1. Blackout screen handling
     const isBlank = Boolean(state.blank_screen)
     if (this.dom.tvBlackoutOverlay) {
@@ -792,7 +815,7 @@ class TvApp {
 
     if (isVideoActive) {
       // If video is active, slideshow must be stopped
-      if (this.isSlideshowActive) {
+      if (this.isSlideshowActive || this.wasSlideshowActiveBeforeAnnouncement) {
         this.stopGallerySlideshow()
       }
       this.playRemoteVideo(videoMode)
@@ -801,11 +824,11 @@ class TvApp {
 
       // If video is not active, run slideshow if wanted
       if (isSlideshowWanted) {
-        if (!this.isSlideshowActive) {
+        if (!this.isSlideshowActive && !this.wasSlideshowActiveBeforeAnnouncement) {
           this.startGallerySlideshow(slideshowMode.speed || 7)
         }
       } else {
-        if (this.isSlideshowActive) {
+        if (this.isSlideshowActive || this.wasSlideshowActiveBeforeAnnouncement) {
           this.stopGallerySlideshow()
         }
       }
@@ -934,11 +957,16 @@ class TvApp {
   }
 
   async startGallerySlideshow(speedSeconds = 7) {
-    if (this.isSlideshowActive) return
+    if (this.isSlideshowActive || this.wasSlideshowActiveBeforeAnnouncement) return
     console.log('📸 Starting Cinematic Gallery Slideshow on TV, speed:', speedSeconds, 's')
 
     this.isSlideshowActive = true
-    this.slideshowPhotos = await this.fetchGallerySlideshowPhotos()
+    this.currentSlideshowSpeed = speedSeconds
+
+    // Fetch photos if not yet cached in RAM
+    if (!this.slideshowPhotos || this.slideshowPhotos.length === 0) {
+      this.slideshowPhotos = await this.fetchGallerySlideshowPhotos()
+    }
 
     if (this.slideshowPhotos.length === 0) {
       console.warn('No event photos found in gallery_media for slideshow')
@@ -947,12 +975,40 @@ class TvApp {
       return
     }
 
+    // Always restore last position from localStorage so it continues from the remaining photos
+    let restoredIdx = -1
+    try {
+      const savedId = localStorage.getItem('inspico_slideshow_last_id')
+      const savedUrl = localStorage.getItem('inspico_slideshow_last_url')
+      const savedIdx = localStorage.getItem('inspico_slideshow_last_idx')
+
+      if (savedId) {
+        restoredIdx = this.slideshowPhotos.findIndex(p => p.id === savedId)
+      }
+      if (restoredIdx === -1 && savedUrl) {
+        restoredIdx = this.slideshowPhotos.findIndex(p => (p.hd_url === savedUrl || p.thumb_url === savedUrl))
+      }
+      if (restoredIdx === -1 && savedIdx !== null) {
+        const parsed = parseInt(savedIdx, 10)
+        if (!isNaN(parsed) && parsed >= 0) {
+          restoredIdx = parsed % this.slideshowPhotos.length
+        }
+      }
+    } catch (e) {}
+
+    if (restoredIdx !== -1) {
+      // Advance to the remaining next slide!
+      this.slideshowIndex = (restoredIdx + 1) % this.slideshowPhotos.length
+      console.log(`📍 Resuming slideshow from remaining photo: #${this.slideshowIndex + 1} of ${this.slideshowPhotos.length}`)
+    } else if (this.slideshowIndex === undefined || this.slideshowIndex === null) {
+      this.slideshowIndex = 0
+    }
+
     if (this.dom.tvSlideshowOverlay) {
       this.dom.tvSlideshowOverlay.classList.add('active')
     }
 
-    this.slideshowIndex = 0
-    this.currentSlideSlot = 'A'
+    this.currentSlideSlot = this.currentSlideSlot || 'A'
     await this.renderCurrentSlideshowSlide()
 
     if (this.slideshowInterval) clearInterval(this.slideshowInterval)
@@ -961,6 +1017,46 @@ class TvApp {
         this.nextSlideshowSlide()
       }
     }, speedSeconds * 1000)
+  }
+
+  pauseGallerySlideshow() {
+    if (!this.isSlideshowActive) return
+    console.log('⏸️ Pausing Gallery Slideshow for 20s Result Announcement. Preserving current slide index:', this.slideshowIndex)
+    this.wasSlideshowActiveBeforeAnnouncement = true
+    this.isSlideshowActive = false
+
+    if (this.slideshowInterval) {
+      clearInterval(this.slideshowInterval)
+      this.slideshowInterval = null
+    }
+
+    if (this.dom.tvSlideshowOverlay) {
+      this.dom.tvSlideshowOverlay.classList.remove('active')
+    }
+  }
+
+  resumeGallerySlideshow() {
+    if (!this.wasSlideshowActiveBeforeAnnouncement) return
+    console.log('▶️ Resuming Gallery Slideshow from where it was paused (Remaining slide). Preserved index:', this.slideshowIndex)
+    this.wasSlideshowActiveBeforeAnnouncement = false
+    this.isSlideshowActive = true
+
+    if (this.dom.tvSlideshowOverlay) {
+      this.dom.tvSlideshowOverlay.classList.add('active')
+    }
+
+    // Do NOT start from 0! Advance smoothly to the next remaining photo in queue
+    if (this.slideshowPhotos && this.slideshowPhotos.length > 0) {
+      this.nextSlideshowSlide()
+    }
+
+    const speed = this.currentSlideshowSpeed || 7
+    if (this.slideshowInterval) clearInterval(this.slideshowInterval)
+    this.slideshowInterval = setInterval(() => {
+      if (!this.isAnnouncementActive) {
+        this.nextSlideshowSlide()
+      }
+    }, speed * 1000)
   }
 
   async nextSlideshowSlide() {
@@ -976,6 +1072,17 @@ class TvApp {
 
     const photoUrl = photo.hd_url || photo.thumb_url
     if (!photoUrl) return
+
+    // Persist current photo progress so reload/redeploy/toggle resumes from remaining
+    try {
+      localStorage.setItem('inspico_slideshow_last_idx', this.slideshowIndex.toString())
+      if (photo.id) {
+        localStorage.setItem('inspico_slideshow_last_id', photo.id.toString())
+      }
+      if (photoUrl) {
+        localStorage.setItem('inspico_slideshow_last_url', photoUrl)
+      }
+    } catch (e) {}
 
     // Preload into memory first (Zero blank screen)
     await this.preloadImage(photoUrl)
@@ -1010,8 +1117,8 @@ class TvApp {
   }
 
   stopGallerySlideshow() {
-    if (!this.isSlideshowActive) return
-    console.log('⏹️ Stopping Gallery Slideshow on TV')
+    if (!this.isSlideshowActive && !this.wasSlideshowActiveBeforeAnnouncement) return
+    console.log('⏹️ Stopping Gallery Slideshow on TV (Preserving progress for next session)')
 
     this.isSlideshowActive = false
     this.wasSlideshowActiveBeforeAnnouncement = false
@@ -1281,10 +1388,9 @@ class TvApp {
       this.wasVideoPlayingBeforeAnnouncement = true
     }
 
-    // Hide slideshow temporarily during breaking result announcement
-    if (this.isSlideshowActive && this.dom.tvSlideshowOverlay?.classList.contains('active')) {
-      this.dom.tvSlideshowOverlay.classList.remove('active')
-      this.wasSlideshowActiveBeforeAnnouncement = true
+    // Pause slideshow temporarily during breaking result announcement (preserves current slide position)
+    if (this.isSlideshowActive) {
+      this.pauseGallerySlideshow()
     }
 
     // Show Overlay
@@ -1340,11 +1446,10 @@ class TvApp {
       this.wasVideoPlayingBeforeAnnouncement = false
     }
 
-    // Resume gallery slideshow if slideshow was active prior to announcement
-    if (this.wasSlideshowActiveBeforeAnnouncement && this.isSlideshowActive && this.dom.tvSlideshowOverlay) {
-      console.log('📸 Resuming gallery slideshow after result announcements completed')
-      this.dom.tvSlideshowOverlay.classList.add('active')
-      this.wasSlideshowActiveBeforeAnnouncement = false
+    // Resume gallery slideshow smoothly from next remaining photo
+    if (this.wasSlideshowActiveBeforeAnnouncement) {
+      console.log('📸 Resuming gallery slideshow from current position after result announcements completed')
+      this.resumeGallerySlideshow()
     }
 
     // Refresh standings & replay points roll with newly published points
@@ -1412,13 +1517,13 @@ class TvApp {
     if (this.dashboardSyncInterval) {
       clearInterval(this.dashboardSyncInterval)
     }
-    // Ultra-fast 5-second polling backup alongside 0ms Realtime WebSockets
+    // Smart Low-Egress Fallback (45s) - 0ms Realtime WebSocket already handles all live updates with zero polling load!
     this.dashboardSyncInterval = setInterval(() => {
       if (this.currentView === 'dashboard') {
         this.fetchDashboardPoints()
       }
       this.checkForNewlyPublishedCompetitions()
-    }, 5000)
+    }, 45000)
   }
 
   async fetchStandbyData() {

@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Gayathri:wght@100;400;700&family=Poppins:wght@500;600;700;800;900&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2.2">
 
   <!-- Local Vendor Scripts with CDN Fallbacks -->
   <script src="vendor/supabase.js"></script>
@@ -247,6 +247,7 @@
     <!-- ============================================================== -->
     <div class="tv-video-overlay" id="tvVideoOverlay">
       <video id="tvVideoPlayer" class="tv-video-player" playsinline preload="auto"></video>
+      <iframe id="tvYoutubePlayer" class="tv-youtube-player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
       <div class="tv-video-loader" id="tvVideoLoader">
         <div class="loading-spinner-ring"></div>
         <span id="tvVideoLoaderText">Preloading Video into RAM...</span>
@@ -269,6 +270,6 @@
 
   <!-- External Supabase SDK (Loaded synchronously to avoid duplicate async init) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=2.2"></script>
 </body>
 </html>

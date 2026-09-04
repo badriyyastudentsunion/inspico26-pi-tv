@@ -2308,7 +2308,7 @@ kbd {
   transform: translateY(100px);
   opacity: 0;
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  z-index: 9999;
+  z-index: 999960;
 }
 
 .tv-toast.active {
@@ -2322,7 +2322,7 @@ kbd {
 .result-announcement-overlay {
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  z-index: 999950;
   background: rgba(6, 4, 6, 0.94);
   display: flex;
   align-items: center;
@@ -2660,14 +2660,14 @@ kbd {
 .tv-video-overlay {
   position: fixed;
   inset: 0;
-  z-index: 99990;
+  z-index: 999900;
   background: #000000;
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.25s ease;
   overflow: hidden;
 }
 
@@ -2681,6 +2681,18 @@ kbd {
   height: 100vh;
   object-fit: contain;
   background: #000000;
+  display: block;
+}
+
+.tv-youtube-player {
+  width: 100vw;
+  height: 100vh;
+  border: none;
+  background: #000000;
+  display: none;
+}
+
+.tv-youtube-player.active {
   display: block;
 }
 
