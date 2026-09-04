@@ -1005,6 +1005,19 @@ class TvApp {
     let targetUrl = (videoMode.url || '').trim()
     if (!targetUrl) return
 
+    // Immediately stop and hide any active slideshow or milestone poster showcase
+    this.stopGallerySlideshow()
+    if (this.dom.tvSlideshowOverlay) {
+      this.dom.tvSlideshowOverlay.classList.remove('active')
+    }
+    if (this.dom.dashboardPosterShowcase) {
+      this.dom.dashboardPosterShowcase.classList.remove('active')
+    }
+    if (this.posterRotationTimer) {
+      clearTimeout(this.posterRotationTimer)
+      this.posterRotationTimer = null
+    }
+
     const isLoop = videoMode.loop !== false
     const isMuted = Boolean(videoMode.muted)
     this.currentVideoLoop = isLoop
@@ -1506,9 +1519,6 @@ class TvApp {
   }
 
   stopGallerySlideshow() {
-    if (!this.isSlideshowActive && !this.wasSlideshowActiveBeforeAnnouncement) return
-    console.log('⏹️ Stopping Gallery Slideshow on TV (Preserving progress for next session)')
-
     this.isSlideshowActive = false
     this.wasSlideshowActiveBeforeAnnouncement = false
 
