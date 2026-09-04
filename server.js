@@ -47,6 +47,15 @@ let localTvState = {
   updated_at: Date.now()
 }
 
+// Live Hardware Telemetry Reported back from TV Screen
+let localTvTelemetry = {
+  is_live: true,
+  actual_mode: 'standings', // 'video' | 'youtube' | 'slideshow' | 'standings' | 'announcement' | 'blackout'
+  current_title: 'Live Championship Standings',
+  video_playing: false,
+  timestamp: Date.now()
+}
+
 const server = http.createServer((req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host}`)
   let pathname = decodeURIComponent(parsedUrl.pathname)
@@ -144,7 +153,7 @@ const server = http.createServer((req, res) => {
   if (pathname === '/api/tv-state') {
     if (req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
-      res.end(JSON.stringify(localTvState))
+      res.end(JSON.stringify({ ...localTvState, tv_telemetry: localTvTelemetry }))
       return
     } else if (req.method === 'POST') {
       let body = ''
@@ -155,6 +164,32 @@ const server = http.createServer((req, res) => {
           localTvState = { ...localTvState, ...update, updated_at: Date.now() }
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ success: true, state: localTvState }))
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'Invalid JSON' }))
+        }
+      })
+      return
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // API: Live TV Hardware Telemetry Heartbeat
+  // --------------------------------------------------------------------------
+  if (pathname === '/api/tv-heartbeat') {
+    if (req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
+      res.end(JSON.stringify(localTvTelemetry))
+      return
+    } else if (req.method === 'POST') {
+      let body = ''
+      req.on('data', chunk => body += chunk)
+      req.on('end', () => {
+        try {
+          const data = JSON.parse(body)
+          localTvTelemetry = { ...localTvTelemetry, ...data, timestamp: Date.now() }
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: true, telemetry: localTvTelemetry }))
         } catch (e) {
           res.writeHead(400, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ error: 'Invalid JSON' }))

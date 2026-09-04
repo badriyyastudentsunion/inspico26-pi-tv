@@ -2717,6 +2717,64 @@ kbd {
 }
 
 /* ==========================================================================
+   VIDEO PRE-LOADING STATUS PILL (Scoreboard stays 100% visible while loading)
+   ========================================================================== */
+.tv-video-prep-pill {
+  position: fixed;
+  bottom: 32px;
+  right: 36px;
+  z-index: 999940;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(14, 10, 15, 0.9);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  padding: 10px 22px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 20px rgba(184, 25, 60, 0.35);
+  opacity: 0;
+  transform: translateY(18px);
+  pointer-events: none;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tv-video-prep-pill.active {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.prep-spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--accent-bright);
+  border-radius: 50%;
+  animation: spinRing 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.prep-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.prep-title {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+}
+
+.prep-subtitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
    CINEMATIC GALLERY SLIDESHOW OVERLAY (Ken Burns 60 FPS GPU)
    ========================================================================== */
 .tv-slideshow-overlay {

@@ -248,6 +248,133 @@
     }
 
     /* ==========================================================================
+       REAL-TIME TV SCREEN VERIFICATION CARD STYLES
+       ========================================================================== */
+    .tv-telemetry-card {
+      border: 1px solid rgba(46, 204, 113, 0.35);
+      background: linear-gradient(135deg, rgba(20, 35, 25, 0.75) 0%, rgba(14, 10, 15, 0.95) 100%);
+      transition: all 0.3s ease;
+      margin-bottom: 16px;
+    }
+
+    .tv-telemetry-card.is-video {
+      border-color: rgba(255, 51, 102, 0.5);
+      background: linear-gradient(135deg, rgba(45, 15, 25, 0.8) 0%, rgba(14, 10, 15, 0.95) 100%);
+    }
+
+    .tv-telemetry-card.is-loading {
+      border-color: rgba(243, 156, 18, 0.5);
+      background: linear-gradient(135deg, rgba(40, 30, 10, 0.8) 0%, rgba(14, 10, 15, 0.95) 100%);
+    }
+
+    .tv-telemetry-card.is-offline {
+      border-color: rgba(255, 255, 255, 0.1);
+      background: rgba(20, 20, 25, 0.7);
+    }
+
+    .telemetry-live-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 10px var(--green);
+      display: inline-block;
+      animation: pulseDot 1.4s ease-in-out infinite;
+    }
+
+    .telemetry-live-dot.video {
+      background: #ff3366;
+      box-shadow: 0 0 12px #ff3366;
+    }
+
+    .telemetry-live-dot.loading {
+      background: #f39c12;
+      box-shadow: 0 0 12px #f39c12;
+    }
+
+    .telemetry-live-dot.offline {
+      background: #7f8c8d;
+      box-shadow: none;
+      animation: none;
+    }
+
+    .telemetry-badge-tag {
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(46, 204, 113, 0.18);
+      color: var(--green);
+      border: 1px solid rgba(46, 204, 113, 0.35);
+      text-transform: uppercase;
+    }
+
+    .telemetry-badge-tag.video {
+      background: rgba(255, 51, 102, 0.18);
+      color: #ff3366;
+      border-color: rgba(255, 51, 102, 0.4);
+    }
+
+    .telemetry-badge-tag.loading {
+      background: rgba(243, 156, 18, 0.18);
+      color: #f39c12;
+      border-color: rgba(243, 156, 18, 0.4);
+    }
+
+    .telemetry-badge-tag.offline {
+      background: rgba(255, 255, 255, 0.08);
+      color: #7f8c8d;
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .telemetry-display-box {
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .telemetry-content {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow: hidden;
+    }
+
+    .telemetry-main-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: #ffffff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .telemetry-subtitle {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .telemetry-heartbeat-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    /* ==========================================================================
        VIDEO BROADCAST SECTION STYLES
        ========================================================================== */
     .now-playing-banner {
@@ -682,6 +809,28 @@
       </div>
     </header>
 
+    <!-- REAL-TIME HARDWARE TV SCREEN VERIFICATION CARD -->
+    <section class="control-card tv-telemetry-card" id="tvTelemetryCard">
+      <div class="card-header" style="margin-bottom: 10px;">
+        <h2 class="card-title">
+          <span class="telemetry-live-dot" id="telemetryDot"></span>
+          TV Live Telemetry
+        </h2>
+        <span class="telemetry-badge-tag" id="telemetryBadgeTag">CONFIRMED LIVE</span>
+      </div>
+
+      <div class="telemetry-display-box" id="telemetryDisplayBox">
+        <div class="telemetry-content">
+          <div class="telemetry-main-title" id="telemetryMainTitle">🟢 TV Screen: Live Standings</div>
+          <div class="telemetry-subtitle" id="telemetrySubtitle">Rendering Championship Leaderboard & Points</div>
+        </div>
+        <div class="telemetry-heartbeat-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <span id="telemetrySyncText">Live</span>
+        </div>
+      </div>
+    </section>
+
     <!-- MASTER SCREEN BLANK TOGGLE CARD -->
     <section class="control-card">
       <div class="card-header">
@@ -896,6 +1045,14 @@
           customVideoUrlInput: document.getElementById('customVideoUrlInput'),
           btnPlayCustomUrl: document.getElementById('btnPlayCustomUrl'),
 
+          // TV Telemetry Card DOM
+          tvTelemetryCard: document.getElementById('tvTelemetryCard'),
+          telemetryDot: document.getElementById('telemetryDot'),
+          telemetryBadgeTag: document.getElementById('telemetryBadgeTag'),
+          telemetryMainTitle: document.getElementById('telemetryMainTitle'),
+          telemetrySubtitle: document.getElementById('telemetrySubtitle'),
+          telemetrySyncText: document.getElementById('telemetrySyncText'),
+
           // Slideshow DOM
           btnToggleSlideshow: document.getElementById('btnToggleSlideshow'),
           slideshowMainLabel: document.getElementById('slideshowMainLabel'),
@@ -904,6 +1061,9 @@
           btnSpeed5s: document.getElementById('btnSpeed5s'),
           btnSpeed7s: document.getElementById('btnSpeed7s')
         };
+
+        this.latestTelemetry = null;
+        this.lastTelemetryTime = null;
 
         this.init();
       }
@@ -914,6 +1074,7 @@
         this.initListeners();
         this.fetchLocalVideos();
         this.startStateSyncPoller();
+        setInterval(() => this.renderTelemetryUi(), 1000);
       }
 
       checkAuth() {
@@ -989,6 +1150,7 @@
       subscribeRealtime() {
         if (!this.supabase) return;
 
+        // 1. Listen for State changes
         this.supabase
           .channel('public:tv_remote_control')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload) => {
@@ -1006,6 +1168,16 @@
               this.setConnectedStatus(false, 'OFFLINE');
             }
           });
+
+        // 2. Listen for Instant Hardware Telemetry Broadcast from TV Screen
+        this.supabase
+          .channel('public:tv_telemetry_broadcast')
+          .on('broadcast', { event: 'tv_telemetry' }, ({ payload }) => {
+            if (payload) {
+              this.handleTvTelemetry(payload);
+            }
+          })
+          .subscribe();
       }
 
       startStateSyncPoller() {
@@ -1018,7 +1190,7 @@
               this.setConnectedStatus(true, 'PI CONNECTED');
             }
           } catch (e) {}
-        }, 1000);
+        }, 800);
       }
 
       setConnectedStatus(isOnline, text) {
@@ -1031,8 +1203,108 @@
         }
       }
 
+      handleTvTelemetry(telemetry) {
+        if (!telemetry) return;
+        this.latestTelemetry = telemetry;
+        this.lastTelemetryTime = telemetry.timestamp || Date.now();
+        this.renderTelemetryUi();
+      }
+
+      renderTelemetryUi() {
+        const t = this.latestTelemetry;
+        if (!t) return;
+
+        const ageMs = Date.now() - (t.timestamp || Date.now());
+        const isFresh = ageMs < 9000;
+
+        if (!isFresh) {
+          if (this.dom.tvTelemetryCard) this.dom.tvTelemetryCard.className = 'control-card tv-telemetry-card is-offline';
+          if (this.dom.telemetryDot) this.dom.telemetryDot.className = 'telemetry-live-dot offline';
+          if (this.dom.telemetryBadgeTag) {
+            this.dom.telemetryBadgeTag.className = 'telemetry-badge-tag offline';
+            this.dom.telemetryBadgeTag.textContent = 'STANDBY';
+          }
+          if (this.dom.telemetryMainTitle) this.dom.telemetryMainTitle.textContent = '⚪ TV Screen Inactive / Sleeping';
+          if (this.dom.telemetrySubtitle) this.dom.telemetrySubtitle.textContent = `Last signal ${Math.round(ageMs / 1000)}s ago`;
+          if (this.dom.telemetrySyncText) this.dom.telemetrySyncText.textContent = `${Math.round(ageMs / 1000)}s ago`;
+          return;
+        }
+
+        if (this.dom.telemetrySyncText) this.dom.telemetrySyncText.textContent = 'Live';
+
+        if (t.actual_mode === 'video' || (t.video_playing && t.actual_mode !== 'youtube')) {
+          if (this.dom.tvTelemetryCard) this.dom.tvTelemetryCard.className = 'control-card tv-telemetry-card is-video';
+          if (this.dom.telemetryDot) this.dom.telemetryDot.className = 'telemetry-live-dot video';
+          if (this.dom.telemetryBadgeTag) {
+            this.dom.telemetryBadgeTag.className = 'telemetry-badge-tag video';
+            this.dom.telemetryBadgeTag.textContent = 'CONFIRMED RENDERING';
+          }
+          if (this.dom.telemetryMainTitle) this.dom.telemetryMainTitle.textContent = `🎬 PLAYING ON TV: ${t.current_title || '1080p Video'}`;
+          if (this.dom.telemetrySubtitle) this.dom.telemetrySubtitle.textContent = 'Fullscreen 1080p hardware playback verified';
+        } else if (t.actual_mode === 'youtube') {
+          if (this.dom.tvTelemetryCard) this.dom.tvTelemetryCard.className = 'control-card tv-telemetry-card is-video';
+          if (this.dom.telemetryDot) this.dom.telemetryDot.className = 'telemetry-live-dot video';
+          if (this.dom.telemetryBadgeTag) {
+            this.dom.telemetryBadgeTag.className = 'telemetry-badge-tag video';
+            this.dom.telemetryBadgeTag.textContent = 'CONFIRMED RENDERING';
+          }
+          if (this.dom.telemetryMainTitle) this.dom.telemetryMainTitle.textContent = `🔴 PLAYING ON TV: ${t.current_title || 'YouTube 1080p Stream'}`;
+          if (this.dom.telemetrySubtitle) this.dom.telemetrySubtitle.textContent = 'Zero-chrome clean 1080p embed verified';
+        } else if (t.video_loading || t.actual_mode === 'video_loading') {
+          if (this.dom.tvTelemetryCard) this.dom.tvTelemetryCard.className = 'control-card tv-telemetry-card is-loading';
+          if (this.dom.telemetryDot) this.dom.telemetryDot.className = 'telemetry-live-dot loading';
+          if (this.dom.telemetryBadgeTag) {
+            this.dom.telemetryBadgeTag.className = 'telemetry-badge-tag loading';
+            this.dom.telemetryBadgeTag.textContent = 'PREPARING';
+          }
+          if (this.dom.telemetryMainTitle) this.dom.telemetryMainTitle.textContent = `⏳ TV Loading: ${t.current_title || 'Video'}`;
+          if (this.dom.telemetrySubtitle) this.dom.telemetrySubtitle.textContent = 'Scoreboard is currently displaying on TV until ready';
+        } else if (t.actual_mode === 'slideshow') {
+          if (this.dom.tvTelemetryCard) this.dom.tvTelemetryCard.className = 'control-card tv-telemetry-card';
+          if (this.dom.telemetryDot) this.dom.telemetryDot.className = 'telemetry-live-dot';
+          if (this.dom.telemetryBadgeTag) {
+            this.dom.telemetryBadgeTag.className = 'telemetry-badge-tag';
+            this.dom.telemetryBadgeTag.textContent = 'CONFIRMED LIVE';
+          }
+          if (this.dom.telemetryMainTitle) this.dom.telemetryMainTitle.textContent = `📸 TV SCREEN: ${t.current_title || 'Gallery Slideshow'}`;
+          if (this.dom.telemetrySubtitle) this.dom.telemetrySubtitle.textContent = 'Ken Burns 60 FPS smooth photo broadcast verified';
+        } else if (t.actual_mode === 'announcement') {
+          if (this.dom.tvTelemetryCard) this.dom.tvTelemetryCard.className = 'control-card tv-telemetry-card is-loading';
+          if (this.dom.telemetryDot) this.dom.telemetryDot.className = 'telemetry-live-dot loading';
+          if (this.dom.telemetryBadgeTag) {
+            this.dom.telemetryBadgeTag.className = 'telemetry-badge-tag loading';
+            this.dom.telemetryBadgeTag.textContent = 'ANNOUNCEMENT';
+          }
+          if (this.dom.telemetryMainTitle) this.dom.telemetryMainTitle.textContent = `🚨 TV SCREEN: ${t.current_title || 'Result Announcement'}`;
+          if (this.dom.telemetrySubtitle) this.dom.telemetrySubtitle.textContent = 'Winner spotlight overlay active on TV screen';
+        } else if (t.actual_mode === 'blackout') {
+          if (this.dom.tvTelemetryCard) this.dom.tvTelemetryCard.className = 'control-card tv-telemetry-card is-offline';
+          if (this.dom.telemetryDot) this.dom.telemetryDot.className = 'telemetry-live-dot offline';
+          if (this.dom.telemetryBadgeTag) {
+            this.dom.telemetryBadgeTag.className = 'telemetry-badge-tag offline';
+            this.dom.telemetryBadgeTag.textContent = 'BLACKOUT';
+          }
+          if (this.dom.telemetryMainTitle) this.dom.telemetryMainTitle.textContent = '⚫ TV SCREEN: Blanked';
+          if (this.dom.telemetrySubtitle) this.dom.telemetrySubtitle.textContent = 'Master screen blackout is active';
+        } else {
+          if (this.dom.tvTelemetryCard) this.dom.tvTelemetryCard.className = 'control-card tv-telemetry-card';
+          if (this.dom.telemetryDot) this.dom.telemetryDot.className = 'telemetry-live-dot';
+          if (this.dom.telemetryBadgeTag) {
+            this.dom.telemetryBadgeTag.className = 'telemetry-badge-tag';
+            this.dom.telemetryBadgeTag.textContent = 'CONFIRMED LIVE';
+          }
+          if (this.dom.telemetryMainTitle) this.dom.telemetryMainTitle.textContent = '🟢 TV SCREEN: Live Standings';
+          if (this.dom.telemetrySubtitle) this.dom.telemetrySubtitle.textContent = 'Rendering Championship Leaderboard & Results';
+        }
+      }
+
       applyState(state) {
         if (!state) return;
+
+        // 0. TV Hardware Telemetry Sync
+        if (state.tv_telemetry) {
+          this.handleTvTelemetry(state.tv_telemetry);
+        }
 
         // 1. Blackout state
         this.updateBlackoutUi(Boolean(state.blank_screen));

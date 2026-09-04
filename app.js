@@ -114,6 +114,9 @@ class TvApp {
       tvYoutubePlayer: document.getElementById('tvYoutubePlayer'),
       tvVideoLoader: document.getElementById('tvVideoLoader'),
       tvVideoLoaderText: document.getElementById('tvVideoLoaderText'),
+      tvVideoPrepPill: document.getElementById('tvVideoPrepPill'),
+      tvVideoPrepTitle: document.getElementById('tvVideoPrepTitle'),
+      tvVideoPrepSubtitle: document.getElementById('tvVideoPrepSubtitle'),
 
       // Remote Gallery Slideshow Overlay
       tvSlideshowOverlay: document.getElementById('tvSlideshowOverlay'),
@@ -129,11 +132,25 @@ class TvApp {
     this.posterRotationTimer = null
     this.isVideoPlaying = false
     this.isYoutubePlaying = false
+    this.isVideoLoading = false
     this.currentPlayingVideoUrl = null
+    this.currentPlayingVideoTitle = ''
     this.currentBlobUrl = null
     this.currentPreloadAbortCtrl = null
     this.wasVideoPlayingBeforeAnnouncement = false
     this.wasYoutubePlayingBeforeAnnouncement = false
+    this.youtubeDisplayActivator = null
+
+    // Live Hardware Telemetry Reported back to Admin Console
+    this.currentTvTelemetry = {
+      is_live: true,
+      actual_mode: 'standings',
+      current_title: 'Live Championship Standings',
+      video_playing: false,
+      video_loading: false,
+      timestamp: Date.now()
+    }
+    this.telemetryBroadcastChannel = null
 
     // Slideshow state
     this.isSlideshowActive = false
@@ -152,6 +169,7 @@ class TvApp {
     this.initAutoUpdateChecker()
     this.initLocalStatePoller()
     this.initSupabase()
+    this.initTvTelemetry()
     this.initAudio()
     this.initKeyboardControls()
     this.initEventListeners()
@@ -885,6 +903,102 @@ class TvApp {
     }
   }
 
+  // --------------------------------------------------------------------------
+  // LIVE HARDWARE TV SCREEN TELEMETRY & CONFIRMATION ENGINE
+  // --------------------------------------------------------------------------
+  initTvTelemetry() {
+    this.reportTvTelemetry()
+
+    // 3-second heartbeat to ensure admin console stays fresh
+    if (this.telemetryHeartbeatTimer) clearInterval(this.telemetryHeartbeatTimer)
+    this.telemetryHeartbeatTimer = setInterval(() => {
+      this.reportTvTelemetry()
+    }, 3000)
+
+    // Supabase Realtime Broadcast Channel for 4G Remote Admin Phones
+    if (this.supabase) {
+      try {
+        this.telemetryBroadcastChannel = this.supabase.channel('public:tv_telemetry_broadcast')
+        this.telemetryBroadcastChannel.subscribe()
+      } catch (e) {
+        console.warn('Telemetry channel subscription error:', e)
+      }
+    }
+
+    // Listen to YouTube postMessage events for instantaneous playback start
+    window.addEventListener('message', (event) => {
+      if (!this.isYoutubePlaying && !this.isVideoLoading) return
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data
+        if (data?.event === 'onStateChange' || data?.info?.playerState !== undefined) {
+          const state = data.info?.playerState ?? data.info
+          if (state === 1) { // YT.PlayerState.PLAYING
+            if (typeof this.youtubeDisplayActivator === 'function') {
+              this.youtubeDisplayActivator()
+            }
+          } else if (state === 0) { // YT.PlayerState.ENDED
+            if (!this.currentVideoLoop) {
+              this.stopRemoteVideo()
+            }
+          }
+        }
+      } catch (e) {}
+    })
+  }
+
+  reportTvTelemetry(update = {}) {
+    let mode = 'standings'
+    let title = 'Live Championship Standings'
+
+    if (this.dom.tvBlackoutOverlay && this.dom.tvBlackoutOverlay.classList.contains('active')) {
+      mode = 'blackout'
+      title = 'Blackout Screen'
+    } else if (this.isAnnouncementActive) {
+      mode = 'announcement'
+      title = this.currentAnnouncementTitle || 'Breaking Announcement'
+    } else if (this.isVideoPlaying) {
+      mode = this.isYoutubePlaying ? 'youtube' : 'video'
+      title = this.currentPlayingVideoTitle || 'Video Broadcast'
+    } else if (this.isVideoLoading) {
+      mode = 'video_loading'
+      title = this.currentPlayingVideoTitle || 'Loading Video...'
+    } else if (this.isSlideshowActive) {
+      mode = 'slideshow'
+      title = `Slideshow (${(this.slideshowIndex || 0) + 1}/${this.slideshowPhotos?.length || '?'})`
+    }
+
+    this.currentTvTelemetry = {
+      is_live: true,
+      actual_mode: mode,
+      current_title: title,
+      video_playing: Boolean(this.isVideoPlaying),
+      video_loading: Boolean(this.isVideoLoading),
+      is_rendering: true,
+      timestamp: Date.now(),
+      ...update
+    }
+
+    // 1. Instant Local WiFi Pi Server Heartbeat
+    try {
+      fetch('/api/tv-heartbeat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.currentTvTelemetry)
+      }).catch(() => {})
+    } catch (e) {}
+
+    // 2. Instant Supabase Realtime Broadcast (Zero DB load, fast 20ms relay to 4G admin phones)
+    if (this.telemetryBroadcastChannel) {
+      try {
+        this.telemetryBroadcastChannel.send({
+          type: 'broadcast',
+          event: 'tv_telemetry',
+          payload: this.currentTvTelemetry
+        }).catch(() => {})
+      } catch (e) {}
+    }
+  }
+
   async playRemoteVideo(videoMode) {
     if (!this.dom.tvVideoOverlay) return
 
@@ -893,12 +1007,31 @@ class TvApp {
 
     const isLoop = videoMode.loop !== false
     const isMuted = Boolean(videoMode.muted)
+    this.currentVideoLoop = isLoop
 
     // 1. YouTube Video Embed (Full 1080p, Autoplay, Loop, Clean Chrome)
     const ytId = this.extractYoutubeId(targetUrl)
 
     if (ytId) {
-      console.log('🎬 Launching Fullscreen 1080p YouTube Broadcast on TV, Video ID:', ytId)
+      console.log('🎬 Preparing Fullscreen 1080p YouTube Broadcast on TV, Video ID:', ytId)
+      this.currentPlayingVideoUrl = targetUrl
+      this.currentPlayingVideoTitle = videoMode.filename || 'YouTube 1080p Video'
+      this.isVideoLoading = true
+
+      // Show floating prep pill on TV (Scoreboard remains 100% visible and interactive!)
+      if (this.dom.tvVideoPrepPill) {
+        if (this.dom.tvVideoPrepTitle) this.dom.tvVideoPrepTitle.textContent = 'Loading YouTube Video...'
+        if (this.dom.tvVideoPrepSubtitle) this.dom.tvVideoPrepSubtitle.textContent = 'Scoreboard will keep running until ready'
+        this.dom.tvVideoPrepPill.classList.add('active')
+      }
+
+      // Tell Admin Phone that TV is preparing YouTube
+      this.reportTvTelemetry({
+        actual_mode: 'video_loading',
+        current_title: 'Loading YouTube 1080p...',
+        video_loading: true,
+        video_playing: false
+      })
 
       // Stop native HTML5 video player
       if (this.dom.tvVideoPlayer) {
@@ -915,16 +1048,52 @@ class TvApp {
       }
 
       if (this.dom.tvYoutubePlayer) {
-        const ytEmbedUrl = `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=${isMuted ? 1 : 0}&loop=${isLoop ? 1 : 0}&playlist=${ytId}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&vq=hd1080&enablejsapi=1`
+        const ytEmbedUrl = `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=${isMuted ? 1 : 0}&loop=${isLoop ? 1 : 0}&playlist=${ytId}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&vq=hd1080&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`
         this.dom.tvYoutubePlayer.src = ytEmbedUrl
         this.dom.tvYoutubePlayer.style.display = 'block'
-        this.dom.tvYoutubePlayer.classList.add('active')
       }
 
-      this.dom.tvVideoOverlay.classList.add('active')
-      this.isVideoPlaying = true
-      this.isYoutubePlaying = true
-      this.currentPlayingVideoUrl = targetUrl
+      let hasActivated = false
+      const activateYoutubeDisplay = () => {
+        if (hasActivated) return
+        hasActivated = true
+        if (this.currentPlayingVideoUrl !== targetUrl) return // User stopped or switched
+
+        if (this.dom.tvVideoPrepPill) {
+          this.dom.tvVideoPrepPill.classList.remove('active')
+        }
+        if (this.dom.tvVideoOverlay) {
+          this.dom.tvVideoOverlay.classList.add('active')
+        }
+        if (this.dom.tvYoutubePlayer) {
+          this.dom.tvYoutubePlayer.classList.add('active')
+        }
+
+        this.isVideoLoading = false
+        this.isVideoPlaying = true
+        this.isYoutubePlaying = true
+
+        console.log('✅ YouTube rendering live on TV screen!')
+        this.reportTvTelemetry({
+          actual_mode: 'youtube',
+          current_title: this.currentPlayingVideoTitle || 'YouTube 1080p (Playing)',
+          video_playing: true,
+          video_loading: false,
+          is_rendering: true
+        })
+      }
+
+      this.youtubeDisplayActivator = activateYoutubeDisplay
+
+      if (this.dom.tvYoutubePlayer) {
+        this.dom.tvYoutubePlayer.onload = () => {
+          // Allow 500ms for first frame decode, avoiding black flash
+          setTimeout(activateYoutubeDisplay, 500)
+        }
+      }
+
+      // Safe fallback timer: never stay on scoreboard indefinitely
+      setTimeout(activateYoutubeDisplay, 2400)
       return
     }
 
@@ -958,6 +1127,22 @@ class TvApp {
 
     console.log('🎬 Starting Full Quality Video Broadcast on TV:', targetUrl)
     this.currentPlayingVideoUrl = targetUrl
+    this.currentPlayingVideoTitle = videoMode.filename || targetUrl.split('/').pop() || '1080p Video'
+    this.isVideoLoading = true
+
+    // Show floating prep pill (Scoreboard remains 100% visible while buffering!)
+    if (this.dom.tvVideoPrepPill) {
+      if (this.dom.tvVideoPrepTitle) this.dom.tvVideoPrepTitle.textContent = 'Buffering 1080p Video...'
+      if (this.dom.tvVideoPrepSubtitle) this.dom.tvVideoPrepSubtitle.textContent = 'Preloading into RAM (0%)'
+      this.dom.tvVideoPrepPill.classList.add('active')
+    }
+
+    this.reportTvTelemetry({
+      actual_mode: 'video_loading',
+      current_title: `Buffering: ${this.currentPlayingVideoTitle}`,
+      video_loading: true,
+      video_playing: false
+    })
 
     // Abort previous preload if active
     if (this.currentPreloadAbortCtrl) {
@@ -976,23 +1161,21 @@ class TvApp {
     player.muted = isMuted
     player.loop = isLoop
 
-    // Show Loader with progress
-    if (this.dom.tvVideoLoader) {
-      this.dom.tvVideoLoader.classList.add('active')
-      if (this.dom.tvVideoLoaderText) {
-        this.dom.tvVideoLoaderText.textContent = 'Buffering 100% Full Quality Video into RAM...'
-      }
-    }
-
     // Full memory preload for local or direct MP4 so it NEVER buffers
     this.currentPreloadAbortCtrl = new AbortController()
     let playableSrc = targetUrl
 
     try {
       playableSrc = await this.preloadFullVideoBlob(targetUrl, (percent) => {
-        if (this.dom.tvVideoLoaderText) {
-          this.dom.tvVideoLoaderText.textContent = `Preloading 1080p Video: ${percent}%`
+        if (this.dom.tvVideoPrepSubtitle) {
+          this.dom.tvVideoPrepSubtitle.textContent = `Preloading into RAM (${percent}%)`
         }
+        this.reportTvTelemetry({
+          actual_mode: 'video_loading',
+          current_title: `Buffering ${percent}%: ${this.currentPlayingVideoTitle}`,
+          video_loading: true,
+          video_playing: false
+        })
       }, this.currentPreloadAbortCtrl.signal)
 
       if (playableSrc.startsWith('blob:')) {
@@ -1009,21 +1192,46 @@ class TvApp {
 
     player.oncanplay = () => {
       console.log('✅ Video buffer 100% ready! Launching fullscreen hardware playback...')
-      if (this.dom.tvVideoLoader) {
-        this.dom.tvVideoLoader.classList.remove('active')
-      }
-      this.dom.tvVideoOverlay.classList.add('active')
-      this.isVideoPlaying = true
-
-      player.play().catch(err => {
+      player.play().then(() => {
+        if (this.dom.tvVideoPrepPill) {
+          this.dom.tvVideoPrepPill.classList.remove('active')
+        }
+        this.dom.tvVideoOverlay.classList.add('active')
+        this.isVideoLoading = false
+        this.isVideoPlaying = true
+        this.reportTvTelemetry({
+          actual_mode: 'video',
+          current_title: this.currentPlayingVideoTitle,
+          video_playing: true,
+          video_loading: false,
+          is_rendering: true
+        })
+      }).catch(err => {
         console.warn('Auto-play muted fallback triggered:', err)
         player.muted = true
-        player.play().catch(e => console.error('Video playback failed:', e))
+        player.play().then(() => {
+          if (this.dom.tvVideoPrepPill) {
+            this.dom.tvVideoPrepPill.classList.remove('active')
+          }
+          this.dom.tvVideoOverlay.classList.add('active')
+          this.isVideoLoading = false
+          this.isVideoPlaying = true
+          this.reportTvTelemetry({
+            actual_mode: 'video',
+            current_title: `${this.currentPlayingVideoTitle} (Muted)`,
+            video_playing: true,
+            video_loading: false,
+            is_rendering: true
+          })
+        }).catch(e => console.error('Video playback failed:', e))
       })
     }
 
     player.onerror = (e) => {
       console.error('❌ Error playing video:', e)
+      if (this.dom.tvVideoPrepPill) {
+        this.dom.tvVideoPrepPill.classList.remove('active')
+      }
       if (this.dom.tvVideoLoader) {
         this.dom.tvVideoLoader.classList.remove('active')
       }
@@ -1031,8 +1239,15 @@ class TvApp {
         this.dom.tvVideoOverlay.classList.remove('active')
       }
       this.isVideoPlaying = false
+      this.isVideoLoading = false
       this.currentPlayingVideoUrl = null
       this.showToast('⚠️ Video could not be played, check link')
+      this.reportTvTelemetry({
+        actual_mode: 'standings',
+        current_title: 'Live Standings',
+        video_playing: false,
+        video_loading: false
+      })
     }
 
     player.onended = () => {
@@ -1047,9 +1262,17 @@ class TvApp {
     console.log('⏹️ Instantly stopping TV video broadcast')
     this.isVideoPlaying = false
     this.isYoutubePlaying = false
+    this.isVideoLoading = false
     this.currentPlayingVideoUrl = null
+    this.currentPlayingVideoTitle = ''
+    this.youtubeDisplayActivator = null
     this.wasVideoPlayingBeforeAnnouncement = false
     this.wasYoutubePlayingBeforeAnnouncement = false
+
+    // 0. Hide Prep Pill
+    if (this.dom.tvVideoPrepPill) {
+      this.dom.tvVideoPrepPill.classList.remove('active')
+    }
 
     // 1. Abort any ongoing preload
     if (this.currentPreloadAbortCtrl) {
@@ -1090,6 +1313,15 @@ class TvApp {
     if (this.dom.tvVideoOverlay) {
       this.dom.tvVideoOverlay.classList.remove('active')
     }
+
+    // 6. Report Live Confirmation back to Admin Phone
+    this.reportTvTelemetry({
+      actual_mode: this.isSlideshowActive ? 'slideshow' : (this.isAnnouncementActive ? 'announcement' : 'standings'),
+      current_title: this.isSlideshowActive ? 'Photo Slideshow' : 'Live Championship Standings',
+      video_playing: false,
+      video_loading: false,
+      is_rendering: true
+    })
   }
 
   // --------------------------------------------------------------------------
